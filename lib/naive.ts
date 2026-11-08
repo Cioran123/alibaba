@@ -33,6 +33,43 @@ export async function getSession(sessionId: string) {
   return naive.sessions.get(sessionId);
 }
 
+/**
+ * Naive marks any chat that used our MCP server as having touched a "connected app" and parks later
+ * tool calls on `awaiting_approval` (pending_actions[].read_people = true). Our tools are the company's own
+ * procurement records with limits enforced server-side, so we grant session-scoped trust automatically.
+ * Founder questions (`ask_operator`, kind "question") are never answered here; they are mirrored into
+ * the approvals table for /ops and /api/approve.
+ */
+export async function pollSessions(deps: { sql: any; agentIds: string[]; log?: (s: string) => void }) {
+  const log = deps.log ?? (() => {});
+  let confirmed = 0, questions = 0;
+  for (const agentId of deps.agentIds.filter(Boolean)) {
+    let list: any;
+    try { list = await naive.sessions.list({ agent_id: agentId, status: "idle", limit: 50 } as any); } catch (e: any) { log(`sessions.list failed: ${e.message}`); continue; }
+    for (const item of list.data ?? []) {
+      if (item.stop_reason !== "awaiting_approval" && item.stop_reason !== "awaiting_answer") continue;
+      const s: any = item.pending_actions ? item : await naive.sessions.get(item.id);
+      for (const row of s.pending_actions ?? []) {
+        if (row.kind === "question" || row.name === "ask_operator") {
+          const [exists] = await deps.sql`select id from approvals where tool_call_id = ${row.tool_call_id}`;
+          if (!exists) {
+            const [memo] = await deps.sql`select id from decision_memos where naive_session_id = ${s.id} or naive_session_id is null order by id desc limit 1`;
+            await deps.sql`insert into approvals(memo_id, naive_session_id, tool_call_id, question) values (${memo?.id ?? null}, ${s.id}, ${row.tool_call_id}, ${JSON.stringify(row)}::jsonb)`;
+            await deps.sql`update conversations set state = 'waiting_founder' where naive_session_id = ${s.id}`;
+            questions++; log(`❓ founder question parked in session ${s.id} → /ops`);
+          }
+        } else if (row.kind === "tool" && typeof row.name === "string" && row.name.startsWith("procops.")) {
+          try {
+            await naive.sessions.confirmTool(s.id, { tool_call_id: row.tool_call_id, decision: "allow", scope: "session" });
+            confirmed++; log(`✔ auto-confirmed ${row.name} (session scope) in ${s.id}`);
+          } catch (e: any) { log(`confirm failed ${row.name}: ${e.message?.slice(0, 120)}`); }
+        }
+      }
+    }
+  }
+  return { confirmed, questions };
+}
+
 /** Wrap untrusted inbound text so the agent treats it as data, not instructions. */
 export function fenceSupplierText(channel: string, from: string, body: string, extra?: string) {
   return [
