@@ -70,15 +70,17 @@ export async function saveTaskEvidence(taskId: string): Promise<string | null> {
   try {
     const { mkdirSync, writeFileSync } = await import("node:fs");
     const shots: any = await mobilerun.tasks.screenshots.list(taskId);
-    const urls: string[] = shots?.urls ?? [];
+    // The API lists frames lexicographically (0,1,10,11,…,2,20,…); order them by their numeric file name.
+    const num = (u: string) => Number((u.split("?")[0].match(/\/(\d+)\.png$/) || [])[1] ?? -1);
+    const urls: string[] = [...(shots?.urls ?? [])].sort((a, b) => num(a) - num(b));
     if (!urls.length) return null;
     const dir = `public/evidence/${taskId}`;
     mkdirSync(dir, { recursive: true });
-    const idx = [...new Set([0, Math.floor(urls.length / 2), urls.length - 1])];
+    const idx = [...new Set([0, Math.floor(urls.length / 2), urls.length - 2, urls.length - 1])].filter((i) => i >= 0);
     for (const i of idx) {
       const r = await fetch(urls[i]);
       if (!r.ok) continue;
-      writeFileSync(`${dir}/${i === urls.length - 1 ? "last" : String(i).padStart(3, "0")}.png`, Buffer.from(await r.arrayBuffer()));
+      writeFileSync(`${dir}/${i === urls.length - 1 ? "last" : String(num(urls[i])).padStart(3, "0")}.png`, Buffer.from(await r.arrayBuffer()));
     }
     return `/evidence/${taskId}/last.png`;
   } catch {
