@@ -46,6 +46,14 @@ Founder decides at `/ops` (or `POST /api/approve {approval_id, decision, note}`)
 | `GET /api/devices` | phones with `streamUrl` for the live embed |
 All JSON with CORS `*`. Stages: `found → contacted → replied → negotiating → recommended → approved → ordered` (or `rejected`).
 
+## Platform notes (learned the hard way)
+- Naïve parks later MCP calls (`read_people` hold) after the first call to any MCP server. The worker auto-grants
+  **session-scoped** trust to `procops.*` tools (founder-approved); `ask_operator` questions are never auto-answered.
+- The hackathon API key lacks `admin`/`webhooks:*`, so the MCP secret rides in the URL (`?key=`) and sessions are polled
+  (`scripts/32-poll-inboxes.ts`) instead of webhooks. With an admin key: `30-naive-setup.ts --vault` + the webhook.
+- Public URL tonight is an ngrok tunnel to `next start` on this Mac; `/ops` and `/api/approve` need `?token=DASHBOARD_TOKEN`.
+- Alibaba runs in Chrome on the cloud Android (mobile web); WeChat on the tethered personal iPhone.
+
 ## Safety rails
 - Agents never pay or commit: `propose_offer` enforces `authority_limits` in code; payment goes through Alibaba Trade Assurance by the founder.
 - WeChat: real phone only, pre-seeded contacts, ≤30 sends/day, 45 s pacing, stops on any security prompt.
