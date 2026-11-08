@@ -1,7 +1,7 @@
 import { AgentMailClient } from "agentmail";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-export const agentmail = new AgentMailClient({ apiKey: process.env.AGENTMAIL_API_KEY });
+export const agentmail = new AgentMailClient({ apiKey: process.env.AGENTMAIL_API_KEY || "missing-AGENTMAIL_API_KEY" });
 export const INBOX = process.env.AGENTMAIL_INBOX_ID || "";
 
 const DISCLOSURE =

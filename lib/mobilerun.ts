@@ -1,7 +1,7 @@
 import Mobilerun from "@mobilerun/sdk";
 
 // Reads MOBILERUN_CLOUD_API_KEY from env by default.
-export const mobilerun = new Mobilerun({ apiKey: process.env.MOBILERUN_CLOUD_API_KEY });
+export const mobilerun = new Mobilerun({ apiKey: process.env.MOBILERUN_CLOUD_API_KEY || "missing-MOBILERUN_CLOUD_API_KEY" });
 
 export const DEVICES = {
   /** Cloud Android with the Alibaba.com app logged in (virtual is fine for Alibaba). */

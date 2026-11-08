@@ -1,9 +1,10 @@
 import OpenAI from "openai";
 
 // Called directly (not through Naive's proxy, which rejects image inputs and strict JSON).
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Placeholder keys keep module import (and `next build` page-data collection) from throwing; calls fail loudly instead.
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "missing-OPENAI_API_KEY" });
 const openrouter = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY,
+  apiKey: process.env.OPENROUTER_API_KEY || "missing-OPENROUTER_API_KEY",
   baseURL: "https://openrouter.ai/api/v1",
   defaultHeaders: { "HTTP-Referer": process.env.PUBLIC_BASE_URL || "http://localhost", "X-Title": "procurement-dept" },
 });
