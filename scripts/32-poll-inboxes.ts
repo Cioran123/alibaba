@@ -62,7 +62,8 @@ async function runJob(job: Job) {
         await finish(job, "failed", r, r.error ?? "not_sent");
       }
     } else if (kind === "wechat_read") {
-      const r = await macWechatReadNew();
+      const allowed = (await sql`select handle from supplier_contacts where channel = 'wechat'`).map((x: any) => String(x.handle));
+      const r = await macWechatReadNew(allowed);
       const n = r.error ? 0 : await ingestChats("wechat", r.chats);
       await finish(job, r.error ? "failed" : "done", { ...r, newMessages: n }, r.error ?? undefined);
       console.log(`   wechat_read (mac): ${r.chats.length} chats, ${n} new messages`);

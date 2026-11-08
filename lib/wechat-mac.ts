@@ -29,24 +29,64 @@ export async function wechatRunning(): Promise<boolean> {
   return out.length > 0;
 }
 
+const PROC = `(first process whose name is "${APP}" or name is "微信")`;
+
+async function frontmostName() {
+  return osa(`tell application "System Events" to get name of first process whose frontmost is true`).catch(() => "");
+}
+
+/** Bring WeChat to the front with its main window visible; throws if it will not come forward. */
 async function activate() {
-  await osa(`tell application "${APP}" to activate`);
-  await sleep(700);
+  for (let i = 0; i < 3; i++) {
+    await osa(`tell application "${APP}" to activate`).catch(() => {});
+    await osa(`tell application "${APP}" to reopen`).catch(() => {});
+    await osa(`tell application "System Events" to set frontmost of ${PROC} to true`).catch(() => {});
+    await sleep(900);
+    if ((await frontmostName()) === APP) {
+      // make sure a real window exists (WeChat closed to the dock has none)
+      const n = Number(await osa(`tell application "System Events" to count windows of ${PROC}`).catch(() => "0"));
+      if (n > 0) return;
+      await osa(`tell application "System Events" to tell ${PROC} to keystroke "1" using command down`).catch(() => {}); // ⌘1 = Chats
+      await sleep(800);
+      if (Number(await osa(`tell application "System Events" to count windows of ${PROC}`).catch(() => "0")) > 0) return;
+    }
+  }
+  throw new Error("wechat_not_frontmost");
 }
 
 /** Bounds of the main WeChat window as {x,y,w,h}. */
 async function windowBounds() {
-  const out = await osa(`tell application "System Events" to tell (first process whose name contains "${APP}" or name contains "微信") to get {position, size} of window 1`);
+  const out = await osa(`tell application "System Events" to tell ${PROC} to get {position, size} of window 1`);
   const n = out.split(",").map((s) => Number(s.trim()));
   return { x: n[0], y: n[1], w: n[2], h: n[3] };
 }
 
-/** Screenshot the WeChat window to a PNG; returns the file path and a data URL. */
+/** CGWindowID of WeChat's main window (largest on-screen window owned by the app), via JXA + CoreGraphics. */
+async function windowId(): Promise<number | null> {
+  const jxa = `ObjC.import('CoreGraphics');
+const list = ObjC.deepUnwrap($.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly | $.kCGWindowListExcludingDesktopElements, $.kCGNullWindowID)) || [];
+const ws = list.filter(w => (w.kCGWindowOwnerName === '${APP}' || w.kCGWindowOwnerName === '微信') && w.kCGWindowLayer === 0 && w.kCGWindowBounds && w.kCGWindowBounds.Width > 300);
+ws.sort((a, b) => (b.kCGWindowBounds.Width * b.kCGWindowBounds.Height) - (a.kCGWindowBounds.Width * a.kCGWindowBounds.Height));
+ws.length ? String(ws[0].kCGWindowNumber) : '';`;
+  try {
+    const { stdout } = await exec("osascript", ["-l", "JavaScript", "-e", jxa], { timeout: 15000 });
+    const id = Number(stdout.trim());
+    return Number.isFinite(id) && id > 0 ? id : null;
+  } catch { return null; }
+}
+
+/** Screenshot the WeChat window to a PNG (by window id, so overlapping windows do not matter); returns path + data URL. */
 export async function screenshotWindow(outPath: string) {
-  const b = await windowBounds();
-  await exec("screencapture", ["-x", "-R", `${b.x},${b.y},${b.w},${b.h}`, outPath], { timeout: 15000 });
+  if ((await frontmostName()) !== APP) await activate();
+  const id = await windowId();
+  if (id) {
+    await exec("screencapture", ["-x", "-o", "-l", String(id), outPath], { timeout: 15000 });
+  } else {
+    const b = await windowBounds();
+    await exec("screencapture", ["-x", "-R", `${b.x},${b.y},${b.w},${b.h}`, outPath], { timeout: 15000 });
+  }
   const buf = readFileSync(outPath);
-  return { path: outPath, dataUrl: `data:image/png;base64,${buf.toString("base64")}`, bounds: b };
+  return { path: outPath, dataUrl: `data:image/png;base64,${buf.toString("base64")}`, windowId: id };
 }
 
 /** Open the chat with a contact (exact remark/display name) via Cmd+F search. */
@@ -95,14 +135,27 @@ export async function wechatSend(contact: string, text: string): Promise<{ sent:
 }
 
 /** Read new messages: screenshot the chat list, ask vision for chats with unread badges, open each and transcribe. */
-export async function wechatReadNew(maxChats = 6): Promise<{ chats: { contact: string; messages: { from: "supplier" | "us"; text: string; time: string | null; kind: string }[] }[]; error: string | null; evidence: string | null }> {
+/**
+ * Read new messages, but ONLY from chats whose name matches an allowed supplier contact (never personal chats).
+ * `allowed` = supplier_contacts.handle values for channel wechat (e.g. "S001 Jack"); the match is case-insensitive
+ * on the full name, the S-code prefix, or the name after the code.
+ */
+export async function wechatReadNew(allowed: string[], maxChats = 6): Promise<{ chats: { contact: string; messages: { from: "supplier" | "us"; text: string; time: string | null; kind: string }[] }[]; error: string | null; evidence: string | null }> {
+  const norm = (x: string) => x.toLowerCase().replace(/\s+/g, " ").trim();
+  const allowedNorm = allowed.map(norm).filter(Boolean);
+  const isAllowed = (name: string) => {
+    const n = norm(name);
+    return allowedNorm.some((a) => n === a || n.startsWith(a) || a.startsWith(n) || (a.match(/^s\d{3}/) && n.startsWith(a.slice(0, 4))) || a.replace(/^s\d{3}\s*/, "") === n);
+  };
   const taskId = `${Date.now().toString(36)}`;
   const dir = evidenceDir(taskId);
   try {
     if (!(await wechatRunning())) return { chats: [], error: "wechat_not_running", evidence: null };
     await activate();
     const list = await screenshotWindow(`${dir}/list.png`);
-    const unread = await listUnread(list.dataUrl);
+    const unreadAll = await listUnread(list.dataUrl);
+    const unread = allowedNorm.length ? unreadAll.filter(isAllowed) : [];
+    if (unreadAll.length && !unread.length) console.log(`   wechat: ${unreadAll.length} unread chat(s) ignored (not supplier contacts)`);
     const chats = [];
     for (const name of unread.slice(0, maxChats)) {
       await openChat(name);
