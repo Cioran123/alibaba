@@ -13,8 +13,10 @@ const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPE
 
 // Strong model for memo + vision (OpenAI id when the key exists, else an OpenRouter id), cheap Chinese model for drafting/translation.
 const STRONG_CLIENT = openai ?? openrouter;
-const STRONG_MODEL = openai ? (process.env.OPENAI_VISION_MODEL || "gpt-5.4-mini") : (process.env.OPENROUTER_STRONG_MODEL || "openai/gpt-5.4-mini");
-const ZH_MODEL = process.env.OPENROUTER_ZH_MODEL || "qwen/qwen3.5-plus";
+// Ids verified against openrouter.ai/api/v1/models on 2026-11-07.
+const STRONG_MODEL = openai ? (process.env.OPENAI_VISION_MODEL || "gpt-5.6-luna") : (process.env.OPENROUTER_STRONG_MODEL || "openai/gpt-5.6-luna");
+const MEMO_MODEL = openai ? (process.env.OPENAI_MEMO_MODEL || "gpt-5.6-sol") : (process.env.OPENROUTER_MEMO_MODEL || "openai/gpt-5.6-sol");
+const ZH_MODEL = process.env.OPENROUTER_ZH_MODEL || "qwen/qwen3.8-flash";
 
 type Part = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail?: "high" | "low" | "auto" } };
 
@@ -137,6 +139,6 @@ export async function memoCompose(input: { company: string; target_qty: number; 
     `Rank by landed cost, lead time, certifications (CE/FCC), supplier credibility and risk. Authority limits: ${JSON.stringify(input.limits)}. ` +
     `State clearly what you recommend and what the founder must decide (proceed / counter / reject). Never commit money. If no supplier has a usable quote yet, say so and recommend the best follow-up.`;
   return jsonCall<{ markdown: string; recommended_supplier_id: number | null; ranked: any[]; proposed_next_step: string }>(
-    STRONG_CLIENT, process.env.OPENAI_MEMO_MODEL || STRONG_MODEL, "memo", schema, system, `DATA:\n${JSON.stringify(input.suppliers, null, 1)}`,
+    STRONG_CLIENT, MEMO_MODEL, "memo", schema, system, `DATA:\n${JSON.stringify(input.suppliers, null, 1)}`,
   );
 }
