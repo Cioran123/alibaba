@@ -122,9 +122,9 @@ export async function ensureEnvoySession(conversationId: number, firstMessage?: 
 }
 
 /** Record an outbound message we sent (any channel). */
-export async function recordOutbound(p: { supplierId: number; channel: Channel; externalThreadId: string; externalId: string; body: string; sentBy: "agent" | "human"; bodyEn?: string | null }) {
+export async function recordOutbound(p: { supplierId: number; channel: Channel; externalThreadId: string; externalId: string; body: string; sentBy: "agent" | "human"; bodyEn?: string | null; screenshotUrl?: string | null }) {
   const conv = await getConversation(p.supplierId, p.channel, p.externalThreadId);
-  const msg = await insertMessage({ conversationId: conv.id, direction: "out", externalId: p.externalId, bodyOriginal: p.body, bodyEn: p.bodyEn ?? null, sentBy: p.sentBy });
+  const msg = await insertMessage({ conversationId: conv.id, direction: "out", externalId: p.externalId, bodyOriginal: p.body, bodyEn: p.bodyEn ?? null, sentBy: p.sentBy, screenshotUrl: p.screenshotUrl ?? null });
   await advanceStage(p.supplierId, "contacted");
   await sql`update conversations set state = 'waiting_supplier' where id = ${conv.id}`;
   return { conversationId: conv.id, messageId: msg?.id ?? null };

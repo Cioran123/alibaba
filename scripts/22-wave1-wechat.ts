@@ -1,7 +1,7 @@
 // Wave 1: WeChat greeting + RFQ to pre-seeded contacts on the tethered iPhone. One contact per run.
 // Run: npm run script scripts/22-wave1-wechat.ts -- --supplier 12 --remark "S012 Shenzhen XYZ" [--text "custom zh text"] [--dry]
 import { sql } from "../lib/db";
-import { DEVICES, runTaskAndWait, setClipboard } from "../lib/mobilerun";
+import { DEVICES, runTaskAndWait, setClipboard, saveTaskEvidence } from "../lib/mobilerun";
 import { wechatSendTask } from "../lib/phone-tasks";
 import { recordOutbound } from "../lib/channels";
 import { firstContactZh } from "../lib/templates";
@@ -27,7 +27,7 @@ const t = wechatSendTask(REMARK, text);
 const r = await runTaskAndWait({ deviceId: DEVICES.iphone, ...t, timeoutSec: 300 }, { onStatus: (st) => console.log("   ", st) });
 const out: any = r.output ?? {};
 if (r.succeeded && out.sent) {
-  await recordOutbound({ supplierId: SID, channel: "wechat", externalThreadId: REMARK, externalId: `wechat:out:${SID}:${r.taskId}`, body: text, sentBy: "agent" });
+  await recordOutbound({ supplierId: SID, channel: "wechat", externalThreadId: REMARK, externalId: `wechat:out:${SID}:${r.taskId}`, body: text, sentBy: "agent", screenshotUrl: await saveTaskEvidence(r.taskId) });
   console.log(`✅ sent (task ${r.taskId}); last bubble: ${String(out.last_bubble).slice(0, 80)}`);
 } else {
   console.log(`❌ not sent: ${out.error ?? r.message ?? r.status} (task ${r.taskId})`);

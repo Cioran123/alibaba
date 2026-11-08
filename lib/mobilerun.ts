@@ -62,6 +62,30 @@ export async function runTaskAndWait(
   return { taskId: run.id, status: "timeout", succeeded: false, output: null, message: "client-side timeout", steps: null };
 }
 
+/**
+ * Save the first/middle/last trajectory screenshots of a task under public/evidence/<taskId>/ and
+ * return the public path of the final frame (served by Next from /evidence/...). Best-effort.
+ */
+export async function saveTaskEvidence(taskId: string): Promise<string | null> {
+  try {
+    const { mkdirSync, writeFileSync } = await import("node:fs");
+    const shots: any = await mobilerun.tasks.screenshots.list(taskId);
+    const urls: string[] = shots?.urls ?? [];
+    if (!urls.length) return null;
+    const dir = `public/evidence/${taskId}`;
+    mkdirSync(dir, { recursive: true });
+    const idx = [...new Set([0, Math.floor(urls.length / 2), urls.length - 1])];
+    for (const i of idx) {
+      const r = await fetch(urls[i]);
+      if (!r.ok) continue;
+      writeFileSync(`${dir}/${i === urls.length - 1 ? "last" : String(i).padStart(3, "0")}.png`, Buffer.from(await r.arrayBuffer()));
+    }
+    return `/evidence/${taskId}/last.png`;
+  } catch {
+    return null;
+  }
+}
+
 /** Put text on the device clipboard (used for Chinese input: paste instead of typing). */
 export async function setClipboard(deviceId: string, text: string) {
   await mobilerun.devices.clipboard.set(deviceId, { text } as any);

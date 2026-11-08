@@ -4,7 +4,7 @@
 //  3) ingests supplier replies → Neon → wakes the Envoy session
 import { createHash } from "node:crypto";
 import { sql, audit } from "../lib/db";
-import { DEVICES, runTaskAndWait, setClipboard } from "../lib/mobilerun";
+import { DEVICES, runTaskAndWait, setClipboard, saveTaskEvidence } from "../lib/mobilerun";
 import { wechatSendTask, wechatReadTask, alibabaSendTask, alibabaReadTask } from "../lib/phone-tasks";
 import { ingestInbound, recordOutbound } from "../lib/channels";
 import { pollSessions } from "../lib/naive";
@@ -54,7 +54,8 @@ async function runJob(job: Job) {
     const r = await runTaskAndWait({ deviceId: device_id, ...t, timeoutSec: 420 }, { onStatus: (s) => console.log(`   [${kind}] ${s}`) });
     const out: any = r.output ?? {};
     if (r.succeeded && out.sent) {
-      await recordOutbound({ supplierId: payload.supplier_id, channel: kind === "wechat_send" ? "wechat" : "alibaba", externalThreadId: payload.contact, externalId: `${kind}:${payload.supplier_id}:${r.taskId}`, body: text, sentBy: "agent", bodyEn: payload.text_en ?? null });
+      const shot = await saveTaskEvidence(r.taskId);
+      await recordOutbound({ supplierId: payload.supplier_id, channel: kind === "wechat_send" ? "wechat" : "alibaba", externalThreadId: payload.contact, externalId: `${kind}:${payload.supplier_id}:${r.taskId}`, body: text, sentBy: "agent", bodyEn: payload.text_en ?? null, screenshotUrl: shot });
       await finish(job, "done", { ...r });
     } else {
       await finish(job, "failed", { ...r }, out.error ?? r.message ?? r.status);
@@ -64,6 +65,7 @@ async function runJob(job: Job) {
     const t = kind === "wechat_read" ? wechatReadTask() : alibabaReadTask();
     const r = await runTaskAndWait({ deviceId: device_id, ...t, timeoutSec: 900 }, { onStatus: (s) => console.log(`   [${kind}] ${s}`) });
     const chats = (r.output as any)?.chats ?? [];
+    if (r.succeeded && chats.length) await saveTaskEvidence(r.taskId);
     const n = r.succeeded ? await ingestChats(kind === "wechat_read" ? "wechat" : "alibaba", chats) : 0;
     await finish(job, r.succeeded ? "done" : "failed", { ...r, newMessages: n }, r.succeeded ? undefined : r.message ?? r.status);
     console.log(`   ${kind}: ${chats.length} chats, ${n} new messages`);

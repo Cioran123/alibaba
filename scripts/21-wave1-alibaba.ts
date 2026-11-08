@@ -1,7 +1,7 @@
 // Wave 1: Alibaba.com app inquiries via Mobilerun (cloud Android, logged in). Serial, one supplier at a time.
 // Run: npm run script scripts/21-wave1-alibaba.ts -- [--limit 8] [--ids 3,5,9] [--dry]
 import { sql } from "../lib/db";
-import { DEVICES, runTaskAndWait, setClipboard } from "../lib/mobilerun";
+import { DEVICES, runTaskAndWait, setClipboard, saveTaskEvidence } from "../lib/mobilerun";
 import { alibabaSendTask } from "../lib/phone-tasks";
 import { recordOutbound } from "../lib/channels";
 import { firstContactAlibaba } from "../lib/templates";
@@ -28,7 +28,7 @@ for (const s of rows) {
     const r = await runTaskAndWait({ deviceId: DEVICES.android, ...t, timeoutSec: 420 }, { onStatus: (st) => console.log("   ", st) });
     const out: any = r.output ?? {};
     if (r.succeeded && out.sent) {
-      await recordOutbound({ supplierId: s.id, channel: "alibaba", externalThreadId: s.name, externalId: `alibaba:out:${s.id}:${r.taskId}`, body: text, sentBy: "agent" });
+      await recordOutbound({ supplierId: s.id, channel: "alibaba", externalThreadId: s.name, externalId: `alibaba:out:${s.id}:${r.taskId}`, body: text, sentBy: "agent", screenshotUrl: await saveTaskEvidence(r.taskId) });
       console.log(`✅ sent (task ${r.taskId}); last bubble: ${String(out.last_bubble).slice(0, 60)}`);
     } else {
       console.log(`❌ not sent: ${out.error ?? r.message ?? r.status} (task ${r.taskId})`);
