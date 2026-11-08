@@ -94,9 +94,13 @@ const handler = createMcpHandler(
       "alibaba_send",
       { title: "Send Alibaba chat", description: "Queue a message to the supplier in the Alibaba.com app (sent by the phone agent within minutes; check pending_jobs in ledger_read).", inputSchema: z.object({ supplier_id: z.number().int(), text: z.string() }) },
       async ({ supplier_id, text }) => {
-        const [s] = await sql`select name from suppliers where id = ${supplier_id}`;
+        const [s] = await sql`select name, source from suppliers where id = ${supplier_id}`;
         const [c] = await sql`select handle from supplier_contacts where supplier_id = ${supplier_id} and channel = 'alibaba' limit 1`;
         if (!s) return json({ ok: false, error: "unknown supplier" });
+        if (s.source === "simulated") {
+          await recordOutbound({ supplierId: supplier_id, channel: "alibaba", externalThreadId: s.name, externalId: `sim:out:${supplier_id}:${Date.now()}`, body: text, sentBy: "agent" });
+          return json({ ok: true, status: "sent_to_simulated_seller", note: "Demo sandbox seller: recorded, not sent to any phone." });
+        }
         if (!DEVICES.android) return json({ ok: false, error: "Alibaba phone not configured" });
         const [job] = await sql`insert into device_jobs(device_id, kind, payload) values (${DEVICES.android}, 'alibaba_send', ${JSON.stringify({ supplier_id, contact: s.name, url: c?.handle ?? null, text })}::jsonb) returning id`;
         await audit("tool.alibaba_send", { supplier_id, job: job.id });

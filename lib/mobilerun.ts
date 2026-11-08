@@ -29,7 +29,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function runTaskAndWait(
   p: {
     deviceId: string; task: string; outputSchema?: Record<string, unknown>; systemPrompt?: string;
-    maxSteps?: number; timeoutSec?: number; vision?: boolean; humanize?: boolean; llmModel?: string;
+    maxSteps?: number; timeoutSec?: number; vision?: boolean; humanize?: boolean; llmModel?: string; recordingEnabled?: boolean;
   },
   opts: { pollMs?: number; onStatus?: (s: string) => void } = {},
 ): Promise<TaskResult> {
@@ -44,6 +44,7 @@ export async function runTaskAndWait(
     vision: p.vision ?? false,
     humanize: p.humanize ?? true,
     ...(p.llmModel ? { llmModel: p.llmModel } : {}),
+    ...(p.recordingEnabled ? { recordingEnabled: true } : {}),
   });
   const deadline = Date.now() + (timeoutSec + 90) * 1000;
   let last = "";

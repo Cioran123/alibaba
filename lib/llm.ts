@@ -142,3 +142,38 @@ export async function memoCompose(input: { company: string; target_qty: number; 
     STRONG_CLIENT, MEMO_MODEL, "memo", schema, system, `DATA:\n${JSON.stringify(input.suppliers, null, 1)}`,
   );
 }
+
+/** Founder's hardware need → sourcing brief (Alibaba search query + bilingual spec + RFQ text). */
+export async function sourcingBrief(need: string, company: string) {
+  const schema = {
+    type: "object", additionalProperties: false,
+    properties: {
+      product: { type: "string" }, search_query: { type: "string" }, spec_en: { type: "string" }, spec_zh: { type: "string" },
+      pilot_qty: { type: "integer" }, annual_qty: { type: ["integer", "null"] }, must_have: { type: "array", items: { type: "string" } },
+      rfq_en: { type: "string" },
+    },
+    required: ["product", "search_query", "spec_en", "spec_zh", "pilot_qty", "annual_qty", "must_have", "rfq_en"],
+  };
+  return jsonCall<{ product: string; search_query: string; spec_en: string; spec_zh: string; pilot_qty: number; annual_qty: number | null; must_have: string[]; rfq_en: string }>(
+    openrouter, process.env.OPENROUTER_STRONG_MODEL || "openai/gpt-5.6-luna", "brief", schema,
+    `You are the sourcing scout of ${company}. Turn the founder's hardware need into a sourcing brief. search_query: 3-6 words a buyer would type into Alibaba.com search. ` +
+    `rfq_en: one first-contact Alibaba inquiry (≤90 words, plain text, no line breaks): introduce ${company}, the part, key specs, pilot and annual qty, ask for price tiers FOB Shenzhen, MOQ, lead time, sample cost, certifications, and their WeChat; end with "谢谢！". Do not mention payment.`,
+    need,
+  );
+}
+
+/**
+ * SIMULATED seller reply for demos when no real reply has arrived yet. Always labelled simulated by the caller.
+ * Mimics a typical Shenzhen sales rep on Alibaba chat: friendly, slightly non-native English, tiered quote, a question back.
+ */
+export async function simulateSellerReply(p: { supplierName: string; product: string; inquiry: string; listing?: Record<string, unknown> | null }) {
+  const r = await openrouter.chat.completions.create({
+    model: ZH_MODEL,
+    messages: [
+      { role: "system", content: "You role-play a sales representative of a Shenzhen electronics manufacturer replying on Alibaba.com chat to a buyer inquiry. Write like a real rep: greeting with an English nickname (e.g. 'This is Cindy'), short lines, slightly non-native English, one or two Chinese phrases at most. Give a realistic tiered quote in USD (FOB Shenzhen) for 500/1000/5000 pcs consistent with the listing price if given, MOQ, sample price + sample lead time, mass-production lead time, which certificates they have (and which they can provide reports for), payment terms (T/T 30% deposit or Alibaba Trade Assurance), and ask 1-2 questions back (e.g. housing, firmware customization, target price). Do not include any real phone number, email or WeChat id; say 'my WeChat is same as WhatsApp, I send you in chat'. ≤140 words. Output only the message." },
+      { role: "user", content: `Your company: ${p.supplierName}\nProduct: ${p.product}\nListing: ${JSON.stringify(p.listing ?? {})}\n\nBuyer inquiry:\n${p.inquiry}` },
+    ],
+    temperature: 0.7,
+  });
+  return r.choices[0]?.message?.content?.trim() ?? "";
+}

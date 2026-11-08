@@ -73,6 +73,9 @@ async function runJob(job: Job) {
     return;
   }
   if (kind === "wechat_send" || kind === "alibaba_send") {
+    // Demo sandbox: replies to SIMULATED sellers must never reach a real phone/contact.
+    const [sim] = payload.supplier_id ? await sql`select 1 from suppliers where id = ${payload.supplier_id} and source = 'simulated'` : [];
+    if (sim) { await finish(job, "done", { simulated: true, skipped: true }); console.log(`   [${kind}] skipped: supplier ${payload.supplier_id} is a simulated demo seller`); return; }
     const text: string = payload.text;
     await setClipboard(device_id, text);
     const t = kind === "wechat_send" ? wechatSendTask(payload.contact, text) : alibabaSendTask({ supplierName: payload.contact, url: payload.url }, text);

@@ -1,0 +1,623 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Naïve × mobilerun — Alibaba sourcing (ideal flow)</title>
+<style>
+:root{--bg:#F3F2EF;--ink:#17181A;--mut:#74726D;--line:#E3E1DC;--blue:#2450DB;--blue2:#E8EDFC;--ok:#1E9E5A;--okbg:#E5F5EC;--org:#FF6A00;--orgbg:#FFF1E6;--card:#fff;--warn:#B7791F}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1920px;height:1080px;overflow:hidden;background:var(--bg)}
+body{font-family:-apple-system,"SF Pro Text","Helvetica Neue",Arial,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+.mono{font-family:"SF Mono",Menlo,monospace}
+.serif{font-family:"New York","Iowan Old Style",Georgia,serif;font-style:italic}
+.abs{position:absolute}
+/* top bar */
+#top{position:absolute;left:0;top:0;width:1920px;height:64px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 28px;gap:18px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:21px;letter-spacing:-.3px}
+.dots{display:grid;grid-template-columns:repeat(3,5px);gap:2px}
+.dots i{width:5px;height:5px;border-radius:50%;background:var(--ink);display:block}
+.dots i.o{opacity:.2}
+.crumb{color:var(--mut);font-size:15px;margin-left:26px}
+.crumb b{color:var(--ink);font-weight:600}
+.pill{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;padding:5px 11px;border-radius:99px;border:1px solid var(--line);background:#fff}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.rec .dot{background:#E5484D}
+/* sidebar */
+#side{position:absolute;left:0;top:64px;width:220px;height:1016px;border-right:1px solid var(--line);padding:22px 14px;background:#FAF9F7}
+#side .it{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:9px;font-size:15px;color:#3D3C39;margin-bottom:3px}
+#side .it.on{background:#fff;border:1px solid var(--line);font-weight:600;color:var(--ink)}
+#side .ic{width:16px;height:16px;border:1.6px solid currentColor;border-radius:4px;opacity:.75}
+#side .sec{font-size:11px;letter-spacing:1.2px;color:var(--mut);margin:20px 12px 8px;font-family:"SF Mono",Menlo,monospace}
+.devcard{margin:14px 4px 0;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:12.5px;color:var(--mut);line-height:1.6}
+.devcard b{color:var(--ink);font-size:13.5px}
+/* panels */
+.panel{position:absolute;background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.ph{height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid var(--line);font-weight:650;font-size:15.5px}
+.ph small{font-weight:500;color:var(--mut);font-size:12.5px}
+#agents{left:244px;top:88px;width:440px;height:900px}
+#agentsBody{position:absolute;left:0;top:54px;width:100%;height:846px;overflow:hidden}
+#agentsInner{position:absolute;left:0;top:0;width:100%;padding:18px 18px 40px}
+.msg{display:flex;gap:11px;margin-bottom:16px}
+.av{flex:none;width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff}
+.av.f{background:#17181A}.av.h{background:#6E56CF}.av.s{background:#0E8A6A}.av.e{background:#2450DB}.av.sys{background:#E9E7E2;color:#55534F}
+.who{font-size:12.5px;color:var(--mut);margin-bottom:5px}
+.who b{color:var(--ink);font-weight:650;margin-right:6px}
+.bub{font-size:14.5px;line-height:1.48;background:#F6F5F2;border:1px solid #ECEAE5;border-radius:4px 14px 14px 14px;padding:10px 13px;max-width:350px}
+.bub.f{background:#17181A;color:#fff;border-color:#17181A}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{font-size:12px;padding:4px 9px;border-radius:99px;background:#fff;border:1px solid var(--line);font-weight:550}
+.tool{font-family:"SF Mono",Menlo,monospace;font-size:12.5px;border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:#fff;max-width:350px;line-height:1.5}
+.tool .tn{display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:600;color:var(--ink)}
+.tool .targ{color:var(--mut);margin-top:3px;white-space:pre-wrap}
+.st{font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;font-family:-apple-system,Helvetica,sans-serif;letter-spacing:.2px;white-space:nowrap}
+.st.run{background:var(--blue2);color:var(--blue)}
+.st.ok{background:var(--okbg);color:var(--ok)}
+.memo{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px 13px;max-width:350px;font-size:13.5px;line-height:1.5}
+.memo h4{font-size:13px;letter-spacing:.3px;margin-bottom:6px}
+.memo table{width:100%;border-collapse:collapse;font-size:12.5px;margin:6px 0}
+.memo td{padding:4px 2px;border-top:1px solid #F0EEE9}
+.memo td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.btns{display:flex;gap:8px;margin-top:10px}
+.btn{flex:1;text-align:center;font-weight:650;font-size:13.5px;padding:9px 0;border-radius:9px;border:1px solid var(--line);background:#fff}
+.btn.pri{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn.done{background:var(--ok);border-color:var(--ok);color:#fff}
+/* phone */
+#phoneWrap{position:absolute;z-index:2;left:712px;top:88px;width:420px;height:900px}
+#phone{position:absolute;left:10px;top:12px;width:400px;height:860px;border-radius:58px;background:#111;box-shadow:0 30px 60px -20px rgba(0,0,0,.35),0 0 0 1px #000 inset}
+#screen{position:absolute;left:12px;top:12px;width:376px;height:836px;border-radius:46px;overflow:hidden;background:#fff}
+.scr{position:absolute;left:0;top:0;width:376px;height:836px;background:#fff;overflow:hidden}
+.sb{position:absolute;left:0;top:0;width:100%;height:46px;display:flex;justify-content:space-between;align-items:center;padding:6px 28px 0 34px;font-weight:650;font-size:15px;z-index:5;background:inherit}
+.sb .icons{display:flex;gap:6px;align-items:center}
+.bars{display:flex;gap:2px;align-items:flex-end}.bars i{display:block;width:3px;background:#111;border-radius:1px}
+.batt{width:24px;height:12px;border:1.5px solid #111;border-radius:3px;padding:1px}.batt i{display:block;height:100%;width:75%;background:#111;border-radius:1px}
+.island{position:absolute;left:50%;top:14px;width:14px;height:14px;margin-left:-7px;background:#0B0B0B;border-radius:50%;z-index:999;box-shadow:0 0 0 2px #1a1a1a}
+.chrome{position:absolute;left:0;top:46px;width:100%;height:50px;display:flex;align-items:center;gap:10px;padding:0 12px;background:#fff;border-bottom:1px solid #EEE;z-index:4}
+.url{flex:1;height:36px;border-radius:18px;background:#F1F3F4;display:flex;align-items:center;gap:8px;padding:0 14px;font-size:14px;color:#3C4043;white-space:nowrap;overflow:hidden}
+.tabs{width:22px;height:22px;border:2px solid #444;border-radius:5px;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;color:#444}
+.ah{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 10px}
+.wm{font-weight:800;font-size:22px;color:var(--org);letter-spacing:-.6px}
+.wm span{font-weight:600;font-size:14px}
+.search{margin:0 14px;height:42px;border:2px solid var(--org);border-radius:22px;display:flex;align-items:center;padding:0 6px 0 14px;font-size:14.5px;color:#888;gap:8px}
+.search .q{flex:1;color:#111;white-space:nowrap;overflow:hidden}
+.search .go{width:58px;height:32px;border-radius:16px;background:var(--org);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}
+.caret{display:inline-block;width:2px;height:17px;background:var(--org);vertical-align:-3px;margin-left:1px}
+.cats{display:flex;gap:8px;padding:12px 14px;overflow:hidden}
+.cat{flex:none;font-size:12.5px;padding:6px 11px;border-radius:99px;background:#F5F5F5;color:#333}
+.banner{margin:4px 14px 12px;height:120px;border-radius:14px;background:linear-gradient(120deg,#FFE7D3,#FFF6EE 60%,#FFE0C2);padding:18px;position:relative;overflow:hidden}
+.banner b{font-size:18px;display:block;margin-bottom:6px}
+.banner span{font-size:12.5px;color:#7a5a3e}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 14px}
+.tile{border-radius:12px;background:#FAFAFA;height:150px;position:relative;overflow:hidden}
+.tile .cap{position:absolute;left:10px;bottom:9px;font-size:12px;font-weight:600}
+/* product imagery */
+.img{position:relative;background:linear-gradient(160deg,#F3F4F6,#E7E9EC);overflow:hidden}
+.pcb{position:absolute;left:50%;top:50%;width:58%;height:46%;transform:translate(-50%,-50%) rotate(-8deg);background:linear-gradient(140deg,#13664A,#0B4F38);border-radius:6px;box-shadow:0 10px 18px -6px rgba(0,0,0,.35)}
+.pcb:before{content:"";position:absolute;left:12%;top:18%;width:30%;height:40%;background:#1b1b1b;border-radius:3px;box-shadow:inset 0 0 0 2px #333}
+.pcb:after{content:"";position:absolute;right:10%;top:16%;width:36%;height:62%;background:repeating-linear-gradient(90deg,#D9B44A 0 3px,transparent 3px 7px);opacity:.9;border-radius:2px}
+.puck{position:absolute;left:50%;top:52%;width:58%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#F1F1F1 55%,#DADADA);box-shadow:0 14px 24px -8px rgba(0,0,0,.28)}
+.puck:after{content:"";position:absolute;left:50%;top:50%;width:7%;height:7%;margin:-3.5%;border-radius:50%;background:#7CC4FF;box-shadow:0 0 6px #7CC4FF}
+.box{position:absolute;left:50%;top:52%;width:46%;height:58%;transform:translate(-50%,-50%);border-radius:14px;background:linear-gradient(180deg,#fff,#E9E9E9);box-shadow:0 14px 24px -8px rgba(0,0,0,.28)}
+.box:after{content:"";position:absolute;left:30%;top:18%;width:40%;height:14%;border-radius:6px;background:#2A2A2A}
+.filters{display:flex;gap:7px;padding:10px 14px 4px}
+.fch{font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid #E5E5E5;color:#333;white-space:nowrap}
+.fch.on{border-color:var(--org);color:var(--org);background:var(--orgbg);font-weight:600}
+.res{display:flex;gap:12px;padding:12px 14px;border-bottom:1px solid #F0F0F0;position:relative}
+.res .img{flex:none;width:112px;height:112px;border-radius:10px}
+.res .t{font-size:13.5px;line-height:1.35;color:#222;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.res .p{font-weight:800;font-size:16px;margin-top:6px}
+.res .m{font-size:12px;color:#666;margin-top:2px}
+.res .b{display:flex;gap:6px;align-items:center;margin-top:7px;font-size:11.5px;color:#666}
+.ver{color:#1A5AE0;font-weight:800;font-style:italic;font-size:12px}
+.hl{position:absolute;inset:4px 6px;border:2.5px solid var(--blue);border-radius:12px;background:rgba(36,80,219,.05)}
+.tiers{display:grid;grid-template-columns:repeat(3,1fr);padding:12px 16px;gap:8px}
+.tiers div{font-size:11.5px;color:#666}.tiers b{display:block;font-size:17px;color:#111}
+.ptitle{padding:0 16px 10px;font-size:15px;line-height:1.38;font-weight:600}
+.specs{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px}
+.specs span{font-size:11.5px;background:#F5F5F5;padding:5px 9px;border-radius:6px}
+.sup{margin:6px 14px;border:1px solid #EEE;border-radius:12px;padding:12px;display:flex;gap:11px}
+.slogo{flex:none;width:42px;height:42px;border-radius:9px;background:linear-gradient(135deg,#2E7DD8,#57C3B4);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:16px}
+.sup .n{font-weight:700;font-size:13.5px;line-height:1.3}
+.sup .d{font-size:11.5px;color:#666;margin-top:4px;line-height:1.5}
+.sticky{position:absolute;left:0;bottom:0;width:100%;height:78px;background:#fff;border-top:1px solid #EEE;display:flex;gap:10px;padding:12px 14px 22px;z-index:6}
+.ob{flex:1;border-radius:22px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+.ob.l{border:1.5px solid var(--org);color:var(--org)}
+.ob.f{background:var(--org);color:#fff}
+.formh{display:flex;align-items:center;gap:12px;padding:12px 16px;font-weight:700;font-size:17px;border-bottom:1px solid #F0F0F0}
+.lbl{font-size:13px;font-weight:700;padding:14px 16px 8px}
+.ta{margin:0 16px;min-height:200px;border:1.5px solid #DDD;border-radius:12px;padding:12px;font-size:13.5px;line-height:1.5;color:#222;position:relative}
+.ta.focus{border-color:var(--org)}
+.ta .ph2{color:#AAA}
+.qty{margin:14px 16px;display:flex;justify-content:space-between;align-items:center;border:1px solid #E5E5E5;border-radius:10px;padding:11px 12px;font-size:13.5px}
+.big{margin:12px 16px;height:48px;border-radius:24px;background:var(--org);color:#fff;font-weight:750;display:flex;align-items:center;justify-content:center;font-size:15.5px}
+.paste{position:absolute;background:#2B2B2B;color:#fff;font-size:13px;padding:8px 14px;border-radius:9px;font-weight:600}
+.okc{width:76px;height:76px;border-radius:50%;background:var(--ok);margin:40px auto 16px;display:flex;align-items:center;justify-content:center}
+.prog{display:flex;justify-content:space-between;margin:22px 18px;font-size:10.5px;color:#999;text-align:center}
+.prog div{flex:1}.prog i{display:block;height:4px;border-radius:2px;background:#EEE;margin-bottom:6px}
+.prog .on{color:var(--org);font-weight:700}.prog .on i{background:var(--org)}
+.row{display:flex;gap:12px;padding:13px 16px;border-bottom:1px solid #F3F3F3;align-items:center;position:relative}
+.ava{flex:none;width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+.row .n{font-weight:700;font-size:14px}.row .pv{font-size:12.5px;color:#777;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:220px}
+.row .tm{position:absolute;right:16px;top:14px;font-size:11.5px;color:#999}
+.badge{position:absolute;right:16px;top:36px;min-width:20px;height:20px;border-radius:10px;background:#F23C3C;color:#fff;font-size:11.5px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 6px}
+.chath{position:absolute;left:0;top:46px;width:100%;height:62px;border-bottom:1px solid #EEE;display:flex;align-items:center;gap:11px;padding:0 14px;background:#fff;z-index:4}
+.chath .n{font-weight:700;font-size:15px}.chath .s{font-size:11.5px;color:#777;margin-top:2px}
+#chatBody{position:absolute;left:0;top:108px;width:100%;height:666px;overflow:hidden;background:#F4F5F7}
+#chatInner{position:absolute;left:0;top:0;width:100%;padding:14px 12px 20px}
+.cb{max-width:270px;font-size:13.5px;line-height:1.45;padding:9px 12px;border-radius:14px;margin-bottom:10px;background:#fff;color:#222;box-shadow:0 1px 1px rgba(0,0,0,.04)}
+.cb.me{margin-left:auto;background:#FFE7D4;border-bottom-right-radius:4px}
+.cb.them{border-bottom-left-radius:4px}
+.ctime{text-align:center;font-size:11px;color:#999;margin:4px 0 10px}
+.qcard{max-width:270px;background:#fff;border-radius:14px;margin-bottom:10px;overflow:hidden;border:1px solid #EEE}
+.qcard .qh{background:var(--orgbg);color:var(--org);font-weight:750;font-size:12.5px;padding:8px 12px}
+.qcard table{width:100%;font-size:12.5px;border-collapse:collapse}
+.qcard td{padding:6px 12px;border-top:1px solid #F3F3F3}.qcard td:last-child{text-align:right;font-weight:700}
+.file{display:flex;align-items:center;gap:9px;background:#fff;border-radius:12px;padding:9px 11px;margin-bottom:8px;max-width:240px;font-size:12.5px;border:1px solid #EEE}
+.file i{width:28px;height:34px;border-radius:5px;background:#E5484D;color:#fff;font-style:normal;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.typing{position:absolute;left:12px;width:58px;height:34px;background:#fff;border-radius:14px;border-bottom-left-radius:4px;display:flex;align-items:center;justify-content:center;gap:4px}
+.typing i{width:6px;height:6px;border-radius:50%;background:#B5B5B5;display:block}
+.cin{position:absolute;left:0;bottom:0;width:100%;height:62px;background:#fff;border-top:1px solid #EEE;display:flex;align-items:center;gap:10px;padding:0 12px 6px;z-index:4}
+.cin .f{flex:1;height:38px;border-radius:19px;background:#F3F3F3;display:flex;align-items:center;padding:0 14px;font-size:13.5px;color:#999;white-space:nowrap;overflow:hidden}
+.cin .s{width:38px;height:38px;border-radius:50%;background:var(--org)}
+.touch{position:absolute;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(36,80,219,.22);border:2.5px solid rgba(36,80,219,.85);z-index:20;pointer-events:none}
+/* task panel */
+#task{left:1162px;top:88px;width:730px;height:600px}
+#tasksList{left:1162px;top:706px;width:730px;height:282px}
+.tk{position:absolute;left:0;top:54px;width:100%;padding:20px 22px}
+.tkt{font-size:19px;font-weight:650;line-height:1.35;letter-spacing:-.2px;margin:8px 0 14px}
+.meta{display:flex;gap:16px;font-size:12.5px;color:var(--mut);margin-bottom:16px}
+.meta b{color:var(--ink);font-weight:600}
+.step{display:flex;align-items:center;gap:12px;font-size:14.5px;padding:8px 0;color:#9A9893}
+.step .c{width:22px;height:22px;border-radius:50%;border:1.8px solid #D6D3CC;flex:none;display:flex;align-items:center;justify-content:center}
+.step.done{color:var(--ink)}
+.step.done .c{background:var(--blue);border-color:var(--blue)}
+.step.cur{color:var(--ink);font-weight:600}
+.step.cur .c{border-color:var(--blue);border-top-color:transparent}
+.out{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#FBFAF8;padding:12px 14px;font-family:"SF Mono",Menlo,monospace;font-size:12.5px;line-height:1.6;color:#3d3c39;white-space:pre}
+.out .k{color:#8A5CF5}.out .s{color:#0E8A6A}.out .n{color:#C2410C}
+.ctab{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:10px}
+.ctab th{text-align:left;font-size:11.5px;color:var(--mut);font-weight:600;padding:6px 8px;letter-spacing:.3px}
+.ctab td{padding:9px 8px;border-top:1px solid #F0EEE9}
+.ctab tr.win td{background:#F1F5FF}
+.score{display:inline-block;min-width:38px;text-align:center;font-weight:700;font-size:12.5px;padding:3px 7px;border-radius:7px;background:#F0EEE9}
+.win .score{background:var(--blue);color:#fff}
+.hist{display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid #F3F1EC;font-size:13.5px}
+.hist .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist .du{font-family:"SF Mono",Menlo,monospace;font-size:12px;color:var(--mut);width:70px;text-align:right}
+.hist .th{width:34px;height:46px;border-radius:6px;background:#EEE;flex:none;overflow:hidden;position:relative;border:1px solid var(--line)}
+/* captions & overlays */
+#cap{position:absolute;left:244px;top:1004px;width:1648px;height:62px;display:flex;align-items:center;gap:20px}
+#capL{font-family:"SF Mono",Menlo,monospace;font-size:14px;letter-spacing:1.4px;color:var(--blue);font-weight:600;white-space:nowrap}
+#capT{font-size:25px;letter-spacing:-.3px;white-space:nowrap}
+#tag{position:absolute;right:30px;top:1026px;font-size:12px;color:var(--mut);font-family:"SF Mono",Menlo,monospace}
+.ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:50}
+#title{background:var(--bg)}
+#title h1{font-size:84px;font-weight:600;letter-spacing:-2.5px;line-height:1.02;text-align:center}
+#title h1 em{color:var(--blue);font-weight:400}
+#title p{margin-top:26px;font-size:24px;color:var(--mut)}
+#title .lock{display:flex;gap:16px;align-items:center;margin-bottom:40px;font-size:22px;font-weight:700}
+#skip{background:rgba(23,24,26,.92);color:#fff}
+#skip .big2{font-size:96px;font-weight:600;letter-spacing:-3px}
+#skip .sm{font-size:24px;opacity:.75;margin-top:14px}
+#end{background:var(--bg)}
+#end h2{font-size:66px;font-weight:600;letter-spacing:-2px;text-align:center;line-height:1.08}
+#end h2 em{color:var(--blue);font-weight:400}
+.stats{display:flex;gap:22px;margin-top:48px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:18px;padding:22px 30px;min-width:210px}
+.stat b{display:block;font-size:52px;letter-spacing:-1.5px;font-weight:650}
+.stat span{font-size:15px;color:var(--mut)}
+#end .fine{margin-top:44px;font-size:14px;color:var(--mut);font-family:"SF Mono",Menlo,monospace}
+#cursor{position:absolute;z-index:60;width:26px;height:26px}
+</style></head>
+<body>
+<div id="stage">
+  <div id="top">
+    <div class="logo"><div class="dots"><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i></div>mobilerun</div>
+    <div class="crumb">Devices / <b>alibaba-android</b> · Android cloud phone · logged in as Sentinel Care</div>
+    <div style="flex:1"></div>
+    <div class="pill"><span class="dot"></span>Ready</div>
+    <div class="pill rec"><span class="dot"></span><span id="recT" class="mono">REC 00:00</span></div>
+    <div class="pill">Agent · <b style="margin-left:3px">Naïve procurement dept</b></div>
+  </div>
+  <div id="side">
+    <div class="it"><span class="ic"></span>Overview</div>
+    <div class="it on"><span class="ic"></span>Devices</div>
+    <div class="it"><span class="ic"></span>Tasks</div>
+    <div class="it"><span class="ic"></span>Recordings</div>
+    <div class="it"><span class="ic"></span>Numbers &amp; inbox</div>
+    <div class="it"><span class="ic"></span>Network</div>
+    <div class="sec">FLEET</div>
+    <div class="devcard"><b>alibaba-android</b><br>Android 15 · Chrome<br>Network: Shenzhen-friendly<br>Billing: per minute</div>
+    <div class="devcard"><b>wechat-iphone</b><br>Personal phone · tethered<br>WeChat · idle</div>
+  </div>
+
+  <!-- Naïve agents -->
+  <div id="agents" class="panel">
+    <div class="ph"><span>Naïve · procurement department</span><small>3 agents · 1 founder</small></div>
+    <div id="agentsBody"><div id="agentsInner">
+      <div class="msg" data-t="4.4"><div class="av f">F</div><div><div class="who"><b>Founder</b>Sentinel Care</div>
+        <div class="bub f" id="founderText" data-full="We need 500 × 60 GHz mmWave fall-detection radar modules for our pilot. CE/FCC, low power, under $12.50 each."></div></div></div>
+      <div class="msg" data-t="8.0"><div class="av h">H</div><div><div class="who"><b>Head of Procurement</b>agent</div>
+        <div class="bub">On it. Sourcing brief for the team:
+          <div class="chips"><span class="chip">60 GHz FMCW radar</span><span class="chip">fall + presence</span><span class="chip">UART</span><span class="chip">CE / FCC / RoHS</span><span class="chip">500 pilot · 5k/yr</span><span class="chip">≤ $12.50 / pc</span></div></div></div></div>
+      <div class="msg" data-t="10.2"><div class="av s">S</div><div><div class="who"><b>Scout</b>agent</div>
+        <div class="tool"><div class="tn">mobilerun.run_task <span class="st run" data-ok="28">running</span></div><div class="targ">device: alibaba-android
+"Find a verified manufacturer on Alibaba…"</div></div></div></div>
+      <div class="msg" data-t="28.6"><div class="av s">S</div><div><div class="who"><b>Scout</b>agent</div>
+        <div class="bub">Compared 3 listings. Best match: <b>Shenzhen Lumisense</b>. Verified manufacturer, 9 yrs on Alibaba, 4.9★, replies within 3 h, $9.80–12.50.</div></div></div>
+      <div class="msg" data-t="34.2"><div class="av e">E</div><div><div class="who"><b>Envoy</b>agent · owns this supplier</div>
+        <div class="tool"><div class="tn">mobilerun.run_task <span class="st run" data-ok="40.6">running</span></div><div class="targ">"Send inquiry to Shenzhen Lumisense…"</div></div></div></div>
+      <div class="msg" data-t="41.0"><div class="av e">E</div><div><div class="who"><b>Envoy</b>agent</div>
+        <div class="bub">Inquiry sent from our Alibaba account. I'll watch Messenger and pick it up when they reply.</div></div></div>
+      <div class="msg" data-t="50.4"><div class="av sys">⏰</div><div><div class="who"><b>Inbox sweep</b>every 20 min</div>
+        <div class="bub">📩 New Alibaba message from <b>Lumisense</b>. Waking the Envoy.</div></div></div>
+      <div class="msg" data-t="57.9"><div class="av e">E</div><div><div class="who"><b>Envoy</b>agent</div>
+        <div class="tool"><div class="tn">record_quote <span class="st ok">saved</span></div><div class="targ">$11.80 @500 · $10.90 @1k · MOQ 2
+sample $15 · lead 12–15 d · CE/FCC</div></div></div></div>
+      <div class="msg" data-t="59.6"><div class="av e">E</div><div><div class="who"><b>Envoy</b>agent</div>
+        <div class="tool"><div class="tn">propose_offer <span class="st ok">within authority</span></div><div class="targ">$10.50 × 1,000 pcs · samples ≤ $100
+limits: ≤ $12.50 · MOQ ≤ 1,000 ✓</div></div></div></div>
+      <div class="msg" data-t="61.3"><div class="av e">E</div><div><div class="who"><b>Envoy</b>agent</div>
+        <div class="tool"><div class="tn">draft_zh <span class="st ok">done</span></div><div class="targ">"Cindy您好，1000片能否做到$10.50？…"</div></div></div></div>
+      <div class="msg" data-t="62.6"><div class="av e">E</div><div><div class="who"><b>Envoy</b>agent</div>
+        <div class="bub">Countering at $10.50 for 1k, and asking for 3 samples refundable on order plus the CE/FCC reports.</div></div></div>
+      <div class="msg" data-t="70.0"><div class="av e">E</div><div><div class="who"><b>Envoy</b>agent</div>
+        <div class="tool"><div class="tn">record_quote <span class="st ok">saved</span></div><div class="targ">$10.70 @1k · samples refundable
+CE-RED + FCC reports received</div></div></div></div>
+      <div class="msg" data-t="71.4"><div class="av h">H</div><div><div class="who"><b>Head of Procurement</b>ask_operator → founder</div>
+        <div class="memo"><h4>DECISION MEMO · 60 GHz radar module</h4>
+          <table><tr><td>1. Lumisense · Verified, 9 yrs</td><td><b>$10.70</b> @1k</td></tr><tr><td>2. Radarlink · 6 yrs</td><td>$13.20 @1k</td></tr><tr><td>3. Senvio · unverified</td><td>$8.50 · no FCC</td></tr></table>
+          Recommend <b>Lumisense</b>: 3 samples ($45, refundable) via Trade Assurance, then 1,000 pcs at $10.70.
+          <div class="btns"><div class="btn pri" id="proceed">Proceed</div><div class="btn">Counter</div><div class="btn">Reject</div></div></div></div></div>
+      <div class="msg" data-t="76.6"><div class="av e">E</div><div><div class="who"><b>Envoy</b>agent</div>
+        <div class="bub">Founder approved. Confirming the sample order with Cindy on Alibaba.</div></div></div>
+    </div></div>
+  </div>
+
+  <!-- phone -->
+  <div id="phoneWrap"><div id="phone"><div id="screen">
+    <div class="island"></div>
+    <!-- home -->
+    <div class="scr" id="s_home">
+      <div class="sb"><span>9:41</span><span class="icons"><span class="bars"><i style="height:5px"></i><i style="height:7px"></i><i style="height:9px"></i><i style="height:11px"></i></span><span class="batt"><i></i></span></span></div>
+      <div class="chrome"><div class="url">🔒 alibaba.com</div><div class="tabs">1</div></div>
+      <div style="position:absolute;top:96px;width:100%">
+        <div class="ah"><div class="wm">Alibaba<span>.com</span></div><div style="font-size:12px;color:#666">Hi, Sentinel Care</div></div>
+        <div class="search" id="homeSearch"><span>🔍</span><span class="q" style="color:#999">What are you looking for?</span><span class="go">Search</span></div>
+        <div class="cats"><span class="cat">Electronics</span><span class="cat">Sensors</span><span class="cat">Smart home</span><span class="cat">Medical</span></div>
+        <div class="banner"><b>Source from verified<br>manufacturers</b><span>Trade Assurance on every order</span></div>
+        <div class="grid">
+          <div class="tile img"><div class="pcb"></div><div class="cap">IoT modules</div></div>
+          <div class="tile img"><div class="puck"></div><div class="cap">Smart sensors</div></div>
+          <div class="tile img"><div class="box"></div><div class="cap">Gateways</div></div>
+          <div class="tile img"><div class="puck" style="width:44%"></div><div class="cap">Wearables</div></div>
+        </div>
+      </div>
+    </div>
+    <!-- search + results -->
+    <div class="scr" id="s_search">
+      <div class="sb"><span>9:42</span><span class="icons"><span class="bars"><i style="height:5px"></i><i style="height:7px"></i><i style="height:9px"></i><i style="height:11px"></i></span><span class="batt"><i></i></span></span></div>
+      <div class="chrome"><div class="url" id="srchUrl">🔒 alibaba.com</div><div class="tabs">1</div></div>
+      <div style="position:absolute;top:104px;width:100%;z-index:3;background:#fff;padding-bottom:6px"><div class="search"><span>🔍</span><span class="q" id="qText"></span><span class="go">Search</span></div>
+        <div class="filters" id="filters"><span class="fch on">✓ Verified supplier</span><span class="fch">MOQ ≤ 500</span><span class="fch">CE / FCC</span><span class="fch">Ready to ship</span></div></div>
+      <div id="results" style="position:absolute;top:196px;width:100%">
+        <div class="res" id="r1"><div class="img"><div class="pcb"></div></div><div><div class="t">60GHz mmWave Radar Module Fall Detection Human Presence Sensor UART, Elderly Care, Low Power</div><div class="p">$9.80 – 12.50</div><div class="m">Min. order: 2 pieces</div><div class="b"><span class="ver">Verified</span>· 9 yrs · CN · 4.9★</div></div><div class="hl" id="hl1"></div></div>
+        <div class="res" id="r2"><div class="img"><div class="puck"></div></div><div><div class="t">Ceiling 60G FMCW Fall Detection Radar Sensor for Nursing Homes, WiFi + UART</div><div class="p">$13.20 – 16.00</div><div class="m">Min. order: 100 pieces</div><div class="b"><span class="ver">Verified</span>· 6 yrs · CN · 4.7★</div></div><div class="hl" id="hl2"></div></div>
+        <div class="res" id="r3"><div class="img"><div class="box"></div></div><div><div class="t">Cheap 60GHz Radar Fall Sensor Module OEM, Presence Detection</div><div class="p">$8.50 – 11.00</div><div class="m">Min. order: 500 pieces</div><div class="b">3 yrs · CN · 4.4★</div></div><div class="hl" id="hl3"></div></div>
+        <div class="res"><div class="img"><div class="puck" style="width:46%"></div></div><div><div class="t">24GHz Human Presence Radar Sensor Module Smart Home</div><div class="p">$3.10 – 4.60</div><div class="m">Min. order: 10 pieces</div><div class="b"><span class="ver">Verified</span>· 11 yrs · CN</div></div></div>
+      </div>
+    </div>
+    <!-- product -->
+    <div class="scr" id="s_product">
+      <div class="sb"><span>9:43</span><span class="icons"><span class="bars"><i style="height:5px"></i><i style="height:7px"></i><i style="height:9px"></i><i style="height:11px"></i></span><span class="batt"><i></i></span></span></div>
+      <div class="chrome"><div class="url">🔒 alibaba.com/product/60ghz-radar-fall…</div><div class="tabs">1</div></div>
+      <div id="prodScroll" style="position:absolute;top:96px;width:100%">
+        <div class="img" style="height:300px"><div class="pcb" style="width:56%;height:44%"></div></div>
+        <div class="tiers"><div><b>$12.50</b>2–499 pcs</div><div><b>$10.90</b>500–4,999</div><div><b>$9.80</b>≥ 5,000</div></div>
+        <div class="ptitle">60GHz mmWave Radar Module, Fall Detection & Human Presence Sensor, UART, for Elderly Care</div>
+        <div class="specs"><span>60 GHz FMCW</span><span>Range 0.4–6 m</span><span>&lt; 1 W</span><span>CE · FCC · RoHS</span><span>Sample: 3–5 days</span></div>
+        <div class="sup"><div class="slogo">LS</div><div><div class="n">Shenzhen Lumisense Technology Co., Ltd.</div><div class="d"><span class="ver">Verified</span> · Manufacturer · 9 yrs · CN<br>4.9★ (86 reviews) · Response ≤ 3 h · On-time 98.7%</div></div></div>
+        <div style="height:140px"></div>
+      </div>
+      <div class="sticky"><div class="ob l">Chat now</div><div class="ob f" id="contactBtn">Contact supplier</div></div>
+    </div>
+    <!-- inquiry -->
+    <div class="scr" id="s_inq">
+      <div class="sb"><span>9:44</span><span class="icons"><span class="bars"><i style="height:5px"></i><i style="height:7px"></i><i style="height:9px"></i><i style="height:11px"></i></span><span class="batt"><i></i></span></span></div>
+      <div class="chrome"><div class="url">🔒 message.alibaba.com/msgsend/contact</div><div class="tabs">1</div></div>
+      <div style="position:absolute;top:96px;width:100%">
+        <div class="formh">‹ Contact supplier</div>
+        <div class="sup" style="margin-top:12px"><div class="slogo">LS</div><div><div class="n">Shenzhen Lumisense Technology Co., Ltd.</div><div class="d">To: Cindy Zhou · Sales</div></div></div>
+        <div class="lbl">Detailed requirements</div>
+        <div class="ta" id="taBox"><span class="ph2" id="taPh">Enter product details such as size, color, materials and other requirements…</span><span id="taText"></span></div>
+        <div class="qty"><span>Quantity</span><b>500 pieces</b></div>
+        <div class="big" id="sendBtn">Send inquiry now</div>
+      </div>
+      <div class="paste" id="pastePop" style="left:40px;top:350px">Paste</div>
+      <div class="scr" id="s_ok" style="top:96px;height:740px">
+        <div class="okc"><svg width="38" height="38" viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div style="text-align:center;font-weight:750;font-size:19px">Your inquiry was sent successfully</div>
+        <div style="text-align:center;font-size:13px;color:#777;margin:8px 30px;line-height:1.5">Shenzhen Lumisense usually replies within 3 hours. Trade Assurance protects your order.</div>
+        <div class="prog"><div class="on"><i></i>Send inquiry</div><div class="on"><i></i>Await reply</div><div><i></i>Negotiate</div><div><i></i>Order</div></div>
+        <div class="big" style="background:#fff;border:1.5px solid var(--org);color:var(--org)">Go to Messenger</div>
+      </div>
+    </div>
+    <!-- messenger list -->
+    <div class="scr" id="s_list">
+      <div class="sb"><span>10:21</span><span class="icons"><span class="bars"><i style="height:5px"></i><i style="height:7px"></i><i style="height:9px"></i><i style="height:11px"></i></span><span class="batt"><i></i></span></span></div>
+      <div class="chrome"><div class="url">🔒 message.alibaba.com</div><div class="tabs">1</div></div>
+      <div style="position:absolute;top:96px;width:100%">
+        <div class="formh">Messenger <span style="margin-left:auto;font-size:12px;color:var(--org)">3 unread</span></div>
+        <div class="row" id="rowLumi"><div class="ava" style="background:linear-gradient(135deg,#2E7DD8,#57C3B4)">LS</div><div><div class="n">Cindy Zhou · Lumisense</div><div class="pv">Hi Sentinel Care, this is Cindy 😊 Thanks for your inquiry…</div></div><div class="tm">10:21</div><div class="badge">3</div></div>
+        <div class="row"><div class="ava" style="background:#B9A27A">RL</div><div><div class="n">Dongguan Radarlink</div><div class="pv">Dear friend, our MOQ is 100 pcs, price…</div></div><div class="tm">Yesterday</div></div>
+        <div class="row"><div class="ava" style="background:var(--org)">A</div><div><div class="n">Alibaba.com Assistant</div><div class="pv">Your inquiry has been delivered to the supplier</div></div><div class="tm">9:44</div></div>
+      </div>
+    </div>
+    <!-- chat -->
+    <div class="scr" id="s_chat" style="background:#F4F5F7">
+      <div class="sb" style="background:#fff"><span id="chatClock">10:22</span><span class="icons"><span class="bars"><i style="height:5px"></i><i style="height:7px"></i><i style="height:9px"></i><i style="height:11px"></i></span><span class="batt"><i></i></span></span></div>
+      <div class="chath"><span style="font-size:22px;color:#555">‹</span><div class="ava" style="width:38px;height:38px;background:linear-gradient(135deg,#2E7DD8,#57C3B4);font-size:13px">LS</div><div><div class="n">Cindy Zhou</div><div class="s">Shenzhen Lumisense Technology · <span class="ver">Verified</span></div></div></div>
+      <div id="chatBody"><div id="chatInner">
+        <div class="ctime">Today 9:44</div>
+        <div class="cb me" data-t="0">Hello Shenzhen Lumisense, we are Sentinel Care, building a fall-detection device for seniors. We need a 60 GHz FMCW radar module (fall + presence, UART, low power, CE/FCC). Pilot 500 pcs, ~5,000/yr. Please quote 500 / 1,000 / 5,000 pcs FOB Shenzhen, MOQ, lead time and sample cost. 谢谢！</div>
+        <div class="ctime">10:21</div>
+        <div class="cb them" data-t="54.2" data-ty="53.0">Hi Sentinel Care, this is Cindy from Lumisense 😊 Thanks for your inquiry!</div>
+        <div class="qcard" data-t="55.7" data-ty="54.8"><div class="qh">QUOTATION · LS-R60F radar module</div><table><tr><td>500 pcs</td><td>$11.80</td></tr><tr><td>1,000 pcs</td><td>$10.90</td></tr><tr><td>5,000 pcs</td><td>$9.80</td></tr><tr><td>MOQ · lead time</td><td>2 pcs · 12–15 d</td></tr><tr><td>Terms</td><td>FOB Shenzhen · TA</td></tr></table></div>
+        <div class="cb them" data-t="57.2" data-ty="56.3">Sample $15/pc, 3–5 days by DHL. CE / FCC / RoHS ok ✅ Can you share your housing size? Need custom UART protocol?</div>
+        <div class="cb me" data-t="66.3">Thanks Cindy! For 1,000 pcs could you do $10.50? We'd like 3 samples first. Can the sample fee be refunded on the bulk order? Please also send the CE/FCC test reports. 谢谢！</div>
+        <div class="cb them" data-t="68.6" data-ty="67.2">Ok, I checked with my boss 🙏 $10.70 for 1000pcs is our best. Sample fee refund when order ≥ 500pcs. Reports here:</div>
+        <div class="file" data-t="69.3"><i>PDF</i><div><b>LS-R60F_CE-RED_report.pdf</b><br><span style="color:#999">2.1 MB</span></div></div>
+        <div class="file" data-t="69.6"><i>PDF</i><div><b>LS-R60F_FCC_ID_report.pdf</b><br><span style="color:#999">1.4 MB</span></div></div>
+        <div class="cb me" data-t="78.6">Perfect, thank you Cindy! We'll order 3 samples now via Trade Assurance. Housing drawing coming next week.</div>
+        <div class="cb them" data-t="80.0" data-ty="79.2">Received 👍 I prepare the PI now. Thank you!</div>
+      </div><div class="typing" id="typing"><i></i><i></i><i></i></div></div>
+      <div class="cin"><div class="f" id="cinText">Type a message…</div><div class="s"></div></div>
+    </div>
+    <div class="touch" id="touch"></div>
+  </div></div></div>
+
+  <!-- task panel -->
+  <div id="task" class="panel">
+    <div class="ph"><span>Task</span><span><span class="st run" id="tStatus">running</span></span></div>
+    <div class="tk" id="tk"></div>
+  </div>
+  <div id="tasksList" class="panel">
+    <div class="ph"><span>Recent tasks · alibaba-android</span><small>trajectory + screenshots per step</small></div>
+    <div id="hist" style="position:absolute;top:54px;width:100%"></div>
+  </div>
+
+  <div id="cap"><span id="capL"></span><span id="capT" class="serif"></span></div>
+  <div id="tag">simulated walkthrough · ideal flow</div>
+  <svg id="cursor" viewBox="0 0 24 24"><path d="M4 2l15 10.5-6.6 1.2 3.9 7.3-2.6 1.4-3.9-7.3L4 20z" fill="#111" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>
+
+  <div class="ov" id="title">
+    <div class="lock"><span class="logo"><span class="dots"><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i></span>mobilerun</span><span style="color:var(--mut);font-weight:400">×</span><span>Naïve</span></div>
+    <h1>An AI procurement team<br><em class="serif">with a real phone.</em></h1>
+    <p>From "we need this part" to a negotiated quote on Alibaba, with one human decision.</p>
+  </div>
+  <div class="ov" id="skip"><div class="big2">3 h 12 m later</div><div class="sm">10:21 in Shenzhen · the agents kept watching the inbox</div></div>
+  <div class="ov" id="end">
+    <div class="lock" style="display:flex;gap:16px;align-items:center;margin-bottom:34px;font-size:22px;font-weight:700"><span class="logo"><span class="dots"><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i></span>mobilerun</span><span style="color:var(--mut);font-weight:400">×</span><span>Naïve</span></div>
+    <h2>The department that talks<br><em class="serif">to the outside world.</em></h2>
+    <div class="stats">
+      <div class="stat"><b>1</b><span>founder request</span></div>
+      <div class="stat"><b>5</b><span>phone tasks on Alibaba</span></div>
+      <div class="stat"><b>1</b><span>founder decision</span></div>
+      <div class="stat"><b>0</b><span>human taps on the phone</span></div>
+    </div>
+    <div class="fine">Agents never pay. Money moves only through Alibaba Trade Assurance, approved by the founder.</div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const cl = (x) => Math.max(0, Math.min(1, x));
+const ease = (x) => x < .5 ? 4*x*x*x : 1 - Math.pow(-2*x+2, 3)/2;
+const eo = (x) => 1 - Math.pow(1-x, 3);
+const p = (t, a, b) => ease(cl((t-a)/(b-a)));
+const pe = (t, a, b) => eo(cl((t-a)/(b-a)));
+const win = (t, a, b, f = .35) => Math.min(pe(t, a, a+f), 1 - p(t, b-f, b)); // fade in at a, out at b
+const set = (el, o = 1, x = 0, y = 0, s = 1) => { el.style.opacity = o; el.style.transform = `translate(${x}px,${y}px) scale(${s})`; el.style.visibility = o <= 0.001 ? "hidden" : "visible"; };
+const typed = (str, t, a, cps) => str.slice(0, Math.max(0, Math.floor((t - a) * cps)));
+const T_END = 87;
+
+// ── phone screens: [id, in, out] with slide transitions ──
+const SCREENS = [["s_home", 0, 13.6], ["s_search", 13.6, 22.4], ["s_product", 22.4, 34.4], ["s_inq", 34.4, 47], ["s_list", 50, 52.2], ["s_chat", 52.2, 99]];
+function screens(t) {
+  for (const [id, a, b] of SCREENS) {
+    const el = $(id);
+    const inP = a === 0 ? 1 : pe(t, a, a + .45), outP = p(t, b, b + .45);
+    const vis = t >= a - .01 && t < b + .45;
+    if (!vis) { set(el, 0); continue; }
+    set(el, 1, (1 - inP) * 376 - outP * 120, 0);
+    el.style.zIndex = Math.round(a * 10);
+  }
+}
+// ── touches: [t, x, y, long] in screen coords ──
+const TOUCHES = [[13.0, 188, 168], [16.9, 336, 125], [18.2, 188, 270, 0, 1], [19.4, 188, 405, 0, 1], [20.6, 188, 540, 0, 1], [21.9, 188, 270], [34.0, 280, 795], [35.4, 188, 420], [36.1, 120, 420, 1], [36.8, 72, 362], [39.5, 188, 572], [51.7, 188, 182], [65.4, 160, 805, 1], [66.0, 356, 805], [78.1, 356, 805]];
+function touch(t) {
+  const el = $("touch");
+  let best = null;
+  for (const tc of TOUCHES) { const d = tc[3] ? .9 : .5; if (t >= tc[0] - .25 && t <= tc[0] + d) best = tc; }
+  if (!best || best[4]) { set(el, 0); return; }
+  const [t0, x, y, long] = best; const d = long ? .9 : .5;
+  const o = Math.min(pe(t, t0 - .25, t0), 1 - p(t, t0 + d - .25, t0 + d));
+  const s = t < t0 ? 1.25 - .25 * pe(t, t0 - .25, t0) : (long ? .9 : .9 + .25 * pe(t, t0, t0 + d));
+  el.style.left = x + "px"; el.style.top = y + "px"; set(el, o, 0, 0, s);
+}
+// ── scrolling lists (measure once) ──
+let agentMsgs, chatItems, agentBottoms, chatBottoms;
+function measure() {
+  $("founderText").textContent = $("founderText").dataset.full;
+  agentMsgs = [...document.querySelectorAll("#agentsInner .msg")].map((el) => ({ el, t: +el.dataset.t }));
+  agentBottoms = agentMsgs.map(({ el }) => el.offsetTop + el.offsetHeight);
+  chatItems = [...document.querySelectorAll("#chatInner > [data-t]")].map((el) => ({ el, t: +el.dataset.t, ty: el.dataset.ty ? +el.dataset.ty : null }));
+  chatBottoms = chatItems.map(({ el }) => el.offsetTop + el.offsetHeight + 10);
+}
+function scrollFor(t, events, view) { // events: [{t, bottom}]
+  let y = 0;
+  for (const e of events) { const target = Math.max(0, e.bottom - view); y = y + (target - y) * p(t, e.t, e.t + .6); }
+  return y;
+}
+function agents(t) {
+  // founder typing effect
+  const ft = $("founderText"); const full = ft.dataset.full;
+  ft.textContent = t < 4.6 ? "" : typed(full, t, 4.6, 40) || " ";
+  agentMsgs.forEach(({ el, t: a }) => set(el, pe(t, a, a + .45), 0, (1 - pe(t, a, a + .45)) * 14));
+  const y = scrollFor(t, agentMsgs.map((m, i) => ({ t: m.t, bottom: agentBottoms[i] + 40 })), 846);
+  $("agentsInner").style.transform = `translateY(${-y}px)`;
+  document.querySelectorAll("#agentsInner .st.run").forEach((s) => { if (t >= +s.dataset.ok) { s.className = "st ok"; s.textContent = "completed"; } });
+  // proceed button
+  const pr = $("proceed");
+  if (t >= 75.8) { pr.className = "btn done"; pr.textContent = "Approved ✓"; } else { pr.className = "btn pri"; pr.textContent = "Proceed"; }
+}
+function cursor(t) {
+  const c = $("cursor");
+  if (t < 73.2 || t > 77.2) { set(c, 0); return; }
+  const r = $("proceed").getBoundingClientRect();
+  const tx = r.left + r.width * .45, ty = r.top + r.height * .55;
+  const k = p(t, 73.4, 75.4);
+  const x = 560 + (tx - 560) * k, y = 1060 + (ty - 1060) * k - Math.sin(k * Math.PI) * 60;
+  const click = t > 75.6 && t < 76 ? .85 : 1;
+  c.style.left = x + "px"; c.style.top = y + "px"; set(c, Math.min(pe(t, 73.2, 73.6), 1 - p(t, 76.8, 77.2)), 0, 0, click);
+}
+function phoneDetails(t) {
+  // home search focus highlight
+  // search typing
+  const q = "60GHz fall detection radar module";
+  const qt = typed(q, t, 13.9, 13);
+  $("qText").innerHTML = qt + (t < 17 && Math.floor(t * 2.5) % 2 === 0 ? '<span class="caret"></span>' : "");
+  $("srchUrl").textContent = t > 17 ? "🔒 alibaba.com/trade/search?q=60GHz+fall…" : "🔒 alibaba.com";
+  set($("results"), pe(t, 17.1, 17.6), 0, (1 - pe(t, 17.1, 17.6)) * 16);
+  set($("filters"), pe(t, 17.1, 17.6));
+  // compare highlight 1→2→3 then back to 1
+  const hl = [["hl1", 17.9, 18.9], ["hl2", 19.1, 20.1], ["hl3", 20.3, 21.3], ["hl1", 21.5, 22.4]];
+  ["hl1", "hl2", "hl3"].forEach((h) => set($(h), 0));
+  for (const [h, a, b] of hl) if (t >= a && t <= b) set($(h), win(t, a, b, .2));
+  // product scroll
+  const ps = 150 * p(t, 23.6, 26.2);
+  $("prodScroll").style.transform = `translateY(${-ps}px)`;
+  const cb = $("contactBtn"); cb.style.filter = t > 33.8 && t < 34.4 ? "brightness(.85)" : "none";
+  // inquiry form
+  const inq = "Hello Shenzhen Lumisense, we are Sentinel Care, building a fall-detection device for seniors. We need a 60 GHz FMCW radar module (fall + presence, UART, low power, CE/FCC). Pilot 500 pcs, ~5,000/yr. Please quote 500 / 1,000 / 5,000 pcs FOB Shenzhen, MOQ, lead time and sample cost. 谢谢！";
+  $("taBox").className = t > 35.4 ? "ta focus" : "ta";
+  set($("pastePop"), win(t, 36.3, 36.95, .12));
+  const shown = t < 36.85 ? "" : inq.slice(0, Math.floor(inq.length * pe(t, 36.85, 37.5)));
+  $("taText").textContent = shown; $("taPh").style.display = shown ? "none" : "inline";
+  $("sendBtn").style.filter = t > 39.35 && t < 39.8 ? "brightness(.85)" : "none";
+  set($("s_ok"), pe(t, 40.0, 40.5), 0, (1 - pe(t, 40.0, 40.5)) * 30);
+  // chat
+  let typingOn = null;
+  chatItems.forEach((it, i) => {
+    const o = it.t === 0 ? 1 : pe(t, it.t, it.t + .35);
+    set(it.el, o, 0, (1 - o) * 10);
+    if (it.ty !== null && t >= it.ty && t < it.t) typingOn = it;
+  });
+  const ty = $("typing");
+  if (typingOn) {
+    ty.style.top = typingOn.el.offsetTop + "px";
+    set(ty, pe(t, typingOn.ty, typingOn.ty + .2));
+    [...ty.children].forEach((d, k) => d.style.transform = `translateY(${-3 * Math.max(0, Math.sin((t * 7) - k * .9))}px)`);
+  } else set(ty, 0);
+  const ev = [];
+  chatItems.forEach((it, i) => { if (it.ty !== null) ev.push({ t: it.ty, bottom: it.el.offsetTop + 44 }); ev.push({ t: it.t, bottom: chatBottoms[i] }); });
+  ev.sort((a, b) => a.t - b.t);
+  const cy = scrollFor(t, ev, 666);
+  $("chatInner").style.transform = `translateY(${-cy}px)`; $("typing").style.marginTop = -cy + "px";
+  const reply = "Thanks Cindy! For 1,000 pcs could you do $10.50? We'd like 3 samples…";
+  const fin = "Perfect, thank you Cindy! We'll order 3 samples now…";
+  const cin = $("cinText");
+  if (t > 65.7 && t < 66.3) { cin.textContent = reply; cin.style.color = "#222"; }
+  else if (t > 77.6 && t < 78.6) { cin.textContent = fin; cin.style.color = "#222"; }
+  else { cin.textContent = "Type a message…"; cin.style.color = "#999"; }
+  $("chatClock").textContent = t > 76 ? "10:48" : t > 63 ? "10:34" : "10:22";
+}
+// ── task panel ──
+const TASKS = [
+  { a: 9.8, b: 34.0, title: "Find a verified manufacturer on Alibaba for a 60 GHz mmWave fall-detection radar module (500 pcs)", done: 28.0, dur: "1m 52s", steps: [["Open Chrome · alibaba.com", 12.6], ["Search “60GHz fall detection radar module”", 17.0], ["Filter: verified suppliers", 17.8], ["Compare listings: spec, price, MOQ, rating", 21.4], ["Open best match", 22.6], ["Read supplier profile & price tiers", 27.4]], out: "cands" },
+  { a: 34.0, b: 46.2, title: "Send the RFQ to Shenzhen Lumisense Technology Co., Ltd. from our Alibaba account", done: 40.6, dur: "2m 41s", steps: [["Open contact form", 34.9], ["Paste RFQ (from clipboard)", 37.6], ["Send inquiry", 39.7], ["Verify “sent successfully”", 40.5]], out: "sent" },
+  { a: 50.0, b: 63.0, title: "Read new messages in Alibaba Messenger", done: 57.6, dur: "0m 48s", steps: [["Open Messenger", 50.6], ["Open unread thread · Lumisense", 52.4], ["Read 3 messages + quotation card", 57.4]], out: "read" },
+  { a: 63.0, b: 76.8, title: "Reply to Cindy (Lumisense) in the same thread", done: 66.6, dur: "0m 37s", steps: [["Open thread", 63.6], ["Paste reply", 65.6], ["Send", 66.3]], out: "reply" },
+  { a: 76.8, b: 99, title: "Confirm sample order with Lumisense", done: 78.9, dur: "0m 34s", steps: [["Open thread", 77.2], ["Paste confirmation", 77.9], ["Send", 78.6]], out: "final" },
+];
+const OUTS = {
+  cands: () => `<table class="ctab"><tr><th>SUPPLIER</th><th>PRICE</th><th>MOQ</th><th>TRUST</th><th>SCORE</th></tr>
+    <tr class="win"><td><b>Shenzhen Lumisense</b></td><td>$9.80–12.50</td><td>2</td><td>Verified · 9 yrs · 4.9★</td><td><span class="score">92</span></td></tr>
+    <tr><td>Dongguan Radarlink</td><td>$13.20–16.00</td><td>100</td><td>Verified · 6 yrs</td><td><span class="score">74</span></td></tr>
+    <tr><td>Hangzhou Senvio IoT</td><td>$8.50–11.00</td><td>500</td><td>3 yrs · no FCC</td><td><span class="score">58</span></td></tr></table>`,
+  sent: () => `<div class="out">{ <span class="k">"sent"</span>: <span class="n">true</span>,
+  <span class="k">"supplier"</span>: <span class="s">"Shenzhen Lumisense Technology Co., Ltd."</span>,
+  <span class="k">"last_bubble"</span>: <span class="s">"Hello Shenzhen Lumisense, we are Sentinel…"</span>,
+  <span class="k">"evidence"</span>: <span class="s">"/evidence/7f3a…/last.png"</span> }</div>`,
+  read: () => `<div class="out">{ <span class="k">"chats"</span>: [{ <span class="k">"contact"</span>: <span class="s">"Cindy Zhou · Lumisense"</span>,
+  <span class="k">"messages"</span>: [ <span class="s">"Hi Sentinel Care, this is Cindy…"</span>,
+    <span class="s">"[quotation] 500 $11.80 · 1k $10.90 · 5k $9.80"</span>,
+    <span class="s">"Sample $15/pc, 3–5 days by DHL…"</span> ] }] }</div>`,
+  reply: () => `<div class="out">{ <span class="k">"sent"</span>: <span class="n">true</span>,
+  <span class="k">"approved_by"</span>: <span class="s">"propose_offer · within authority"</span>,
+  <span class="k">"last_bubble"</span>: <span class="s">"Thanks Cindy! For 1,000 pcs could you do $10.50?…"</span> }</div>`,
+  final: () => `<div class="out">{ <span class="k">"sent"</span>: <span class="n">true</span>,
+  <span class="k">"approved_by"</span>: <span class="s">"founder · /ops · Proceed"</span>,
+  <span class="k">"next"</span>: <span class="s">"PI + Trade Assurance link → founder pays"</span> }</div>`,
+};
+let lastTaskKey = "";
+function taskPanel(t) {
+  const task = TASKS.find((k) => t >= k.a && t < k.b) || (t < 9.8 ? null : TASKS[TASKS.length - 1]);
+  const tk = $("tk");
+  if (!task || (t >= 46.2 && t < 50)) {
+    if (lastTaskKey !== "idle") { tk.innerHTML = `<div class="meta"><span>Device <b>alibaba-android</b></span></div><div class="tkt" style="color:var(--mut)">${t < 9.8 ? "Waiting for an agent to dispatch a task…" : "Idle · inbox sweep scheduled every 20 min"}</div>`; lastTaskKey = "idle"; }
+    $("tStatus").className = "st"; $("tStatus").textContent = "idle"; $("tStatus").style.background = "#F0EEE9"; $("tStatus").style.color = "#74726D";
+    set(tk, t < 9.8 ? pe(t, 4, 4.5) : 1);
+    return;
+  }
+  const done = t >= task.done;
+  const showOut = done && task.out;
+  const key = task.a + "|" + task.steps.map((s) => (t >= s[1] ? 1 : 0)).join("") + "|" + (done ? 1 : 0);
+  if (key !== lastTaskKey) {
+    let curSet = false;
+    const steps = task.steps.map(([s, at]) => {
+      let cls = "step";
+      if (t >= at) cls += " done"; else if (!curSet) { cls += " cur"; curSet = true; }
+      const icon = t >= at ? '<svg width="12" height="12" viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7" stroke="#fff" stroke-width="3.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>' : "";
+      return `<div class="${cls}"><span class="c">${icon}</span>${s}</div>`;
+    }).join("");
+    tk.innerHTML = `<div class="meta"><span>Device <b>alibaba-android</b></span><span>Model <b>mobile-agent-fast</b></span><span>Output <b>strict JSON</b></span>${done ? `<span>Took <b>${task.dur}</b></span>` : ""}</div>
+      <div class="tkt">${task.title}</div>${steps}<div id="outBox">${showOut ? OUTS[task.out]() : ""}</div>`;
+    lastTaskKey = key;
+  }
+  const ob = $("outBox"); if (ob) set(ob, showOut ? pe(t, task.done, task.done + .5) : 0, 0, showOut ? (1 - pe(t, task.done, task.done + .5)) * 10 : 0);
+  // rotating spinner for current step
+  const cur = tk.querySelector(".step.cur .c"); if (cur) cur.style.transform = `rotate(${(t * 360) % 360}deg)`;
+  set(tk, pe(t, task.a, task.a + .4), 0, (1 - pe(t, task.a, task.a + .4)) * 10);
+  const stl = $("tStatus"); stl.style.background = ""; stl.style.color = "";
+  if (done) { stl.className = "st ok"; stl.textContent = "completed"; } else { stl.className = "st run"; stl.textContent = "running"; }
+}
+let histKey = "";
+function history(t) {
+  const doneTasks = TASKS.filter((k) => t >= k.done + .4).reverse();
+  const key = doneTasks.length + "";
+  if (key !== histKey) {
+    $("hist").innerHTML = doneTasks.slice(0, 4).map((k, i) => `<div class="hist" data-i="${i}"><span class="th img"><span class="${k.out === "cands" ? "pcb" : "puck"}" style="width:70%"></span></span><span class="nm">${k.title}</span><span class="st ok">completed</span><span class="du">${k.dur}</span></div>`).join("") ||
+      `<div class="hist" style="color:var(--mut)">No tasks yet on this device today.</div>`;
+    histKey = key;
+  }
+  const first = document.querySelector('#hist .hist[data-i="0"]');
+  if (first) { const k = doneTasks[0]; const o = pe(t, k.done + .4, k.done + .9); set(first, o, (1 - o) * -16, 0); }
+}
+// ── captions ──
+const CAPS = [[4, 12, "01 · REQUEST", "The founder asks for a part, once."], [12, 28, "02 · SCOUT", "A Naïve agent drives a real cloud phone and shops Alibaba like a buyer."], [28, 34, "02 · SCOUT", "Listings are scored on spec match, verification, price and MOQ."], [34, 46.2, "03 · OUTREACH", "The RFQ goes out from the company's own Alibaba account."], [50, 60, "04 · REPLY", "The seller answers in Messenger. The agent reads it straight off the phone."], [60, 70.6, "05 · NEGOTIATE", "The Envoy records the quote and counters inside hard authority limits."], [70.6, 81, "06 · DECIDE", "One decision for the founder. Everything else ran on its own."]];
+function captions(t) {
+  const c = CAPS.find(([a, b]) => t >= a && t < b);
+  if (!c) { set($("cap"), 0); return; }
+  $("capL").textContent = c[2]; $("capT").textContent = c[3];
+  set($("cap"), win(t, c[0], c[1], .4), 0, (1 - pe(t, c[0], c[0] + .4)) * 8);
+}
+function overlays(t) {
+  set($("title"), t < 3.4 ? 1 : 1 - p(t, 3.4, 4.2), 0, 0, 1 + .02 * p(t, 3.4, 4.2));
+  const sk = win(t, 46.3, 50.1, .5); set($("skip"), sk, 0, 0, 1);
+  $("skip").querySelector(".big2").style.transform = `translateY(${(1 - pe(t, 46.3, 47.1)) * 20}px)`;
+  set($("end"), pe(t, 81, 81.9));
+  document.querySelectorAll("#end .stat").forEach((s, i) => { const o = pe(t, 81.6 + i * .18, 82.2 + i * .18); set(s, o, 0, (1 - o) * 18); });
+  const secs = Math.max(0, Math.floor((t - 4) * 1.0)); $("recT").textContent = `REC ${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(secs % 60).padStart(2, "0")}`;
+}
+window.renderAt = function (t) { screens(t); touch(t); agents(t); cursor(t); phoneDetails(t); taskPanel(t); history(t); captions(t); overlays(t); };
+window.T_END = T_END;
+document.fonts.ready.then(() => { measure(); window.__ready = true; const q = new URLSearchParams(location.search); if (q.has("t")) renderAt(+q.get("t")); else { const s = performance.now(); (function loop() { const t = (performance.now() - s) / 1000; renderAt(t % (T_END + 1)); requestAnimationFrame(loop); })(); } });
+</script>
+</body></html>
