@@ -1,11 +1,13 @@
 import { answerQuestion, confirmTool } from "@/lib/naive";
 import { sql, audit, advanceStage } from "@/lib/db";
 import { json, options, readBody } from "@/lib/http";
+import { dashboardAuthorized, unauthorized } from "@/lib/auth";
 
 export const OPTIONS = options;
 
 /** POST {approval_id, decision: proceed|counter|reject, note?, supplier_id?} → resumes the Head session. */
 export async function POST(req: Request) {
+  if (!dashboardAuthorized(req)) return unauthorized();
   const b = await readBody(req);
   const approvalId = Number(b.approval_id);
   const decision = String(b.decision || "proceed");
@@ -38,6 +40,10 @@ export async function POST(req: Request) {
   await sql`update approvals set decision = ${decision}, note = ${note}, decided_at = now() where id = ${approvalId}`;
   await sql`update conversations set state = 'open' where naive_session_id = ${a.naive_session_id}`;
   await audit("founder.decision", { approvalId, decision, note });
-  if ((req.headers.get("content-type") || "").includes("form")) return Response.redirect(new URL("/ops", req.url), 303);
+  if ((req.headers.get("content-type") || "").includes("form")) {
+    const back = new URL("/ops", req.url);
+    if (process.env.DASHBOARD_TOKEN) back.searchParams.set("token", process.env.DASHBOARD_TOKEN);
+    return Response.redirect(back, 303);
+  }
   return json({ ok: true, decision, session: { id: result?.id, status: result?.status, stop_reason: result?.stop_reason } });
 }

@@ -7,7 +7,10 @@ import { naive } from "../lib/naive";
 const BASE = process.env.PUBLIC_BASE_URL;
 const MODEL = process.env.NAIVE_MODEL;
 if (!BASE || !MODEL) throw new Error("PUBLIC_BASE_URL and NAIVE_MODEL are required");
-const MCP_URL = `${BASE.replace(/\/$/, "")}/api/mcp`;
+// The secret rides in the URL unless --vault is passed (vault credentials need an admin-scoped key).
+const MCP_URL = process.argv.includes("--vault")
+  ? `${BASE.replace(/\/$/, "")}/api/mcp`
+  : `${BASE.replace(/\/$/, "")}/api/mcp?key=${process.env.MCP_SHARED_SECRET}`;
 const UPDATE = process.argv.includes("--update");
 
 const fill = (f: string) =>
@@ -27,7 +30,11 @@ const tools = (allowed: string[], extra: Record<string, any>) => ({
 });
 
 const budget = { cap_micro_usd: 20_000_000, max_task_micro_usd: 2_000_000, period: "day" as const };
-const notifications = { email: process.env.FOUNDER_EMAIL || null, approvals: true, questions: true, updates: false };
+// Naive requires an email when any notification is enabled; without FOUNDER_EMAIL our webhook + /ops carry the approvals.
+const FOUNDER_EMAIL = process.env.FOUNDER_EMAIL || null;
+const notifications = FOUNDER_EMAIL
+  ? { email: FOUNDER_EMAIL, approvals: true, questions: true, updates: false }
+  : { email: null, approvals: false, questions: false, updates: false };
 const mcp_servers = [{ type: "url" as const, name: "procops", url: MCP_URL }];
 
 const envoyBody = {
@@ -54,10 +61,15 @@ if (UPDATE) {
   process.exit(0);
 }
 
-// 1) Vault credential: Naive injects it as the bearer for our MCP URL.
-const vault = await naive.vaults.create({ display_name: "procurement-ops" } as any);
-const cred = await naive.vaults.credentials.create(vault.id, { kind: "static_bearer", key: "procops", value: process.env.MCP_SHARED_SECRET!, mcp_server_url: MCP_URL } as any);
-console.log("vault", vault.id, "credential", cred.id, "→", MCP_URL);
+// 1) Vault credential: Naive injects it as the bearer for our MCP URL. Needs an `admin`-scoped key.
+//    --skip-vault: create agents + webhook now, add the credential later with --vault-only.
+const VAULT_ONLY = process.argv.includes("--vault-only");
+if (process.argv.includes("--vault")) {
+  const vault = await naive.vaults.create({ display_name: "procurement-ops" } as any);
+  const cred = await naive.vaults.credentials.create(vault.id, { kind: "static_bearer", key: "procops", value: process.env.MCP_SHARED_SECRET!, mcp_server_url: MCP_URL } as any);
+  console.log("vault", vault.id, "credential", cred.id, "→", MCP_URL);
+  if (VAULT_ONLY) process.exit(0);
+}
 
 // 2) Agents
 const envoy = await naive.agents.create(envoyBody as any);

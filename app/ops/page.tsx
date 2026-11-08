@@ -2,7 +2,10 @@ import { sql } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export default async function Ops() {
+export default async function Ops({ searchParams }: { searchParams: Promise<{ token?: string }> }) {
+  const { token } = await searchParams;
+  const required = process.env.DASHBOARD_TOKEN;
+  if (required && token !== required) return <main><h1>401</h1><p>Open /ops?token=&lt;DASHBOARD_TOKEN&gt;</p></main>;
   const suppliers = await sql`
     select s.id, s.name, s.stage, s.source,
       (select string_agg(c.channel, ',') from supplier_contacts c where c.supplier_id = s.id) as channels,
@@ -21,7 +24,7 @@ export default async function Ops() {
         <div key={p.id} style={{ border: "1px solid #999", padding: 12, marginBottom: 12 }}>
           <div><b>#{p.id}</b> session {p.naive_session_id} · {new Date(p.created_at).toLocaleString()}</div>
           <pre style={{ whiteSpace: "pre-wrap", maxHeight: 320, overflow: "auto", background: "#f6f6f6", padding: 8 }}>{p.markdown ?? JSON.stringify(p.question?.question ?? p.question, null, 1)}</pre>
-          <form method="post" action="/api/approve" style={{ display: "flex", gap: 8 }}>
+          <form method="post" action={`/api/approve${required ? `?token=${required}` : ""}`} style={{ display: "flex", gap: 8 }}>
             <input type="hidden" name="approval_id" value={p.id} />
             <input name="note" placeholder="note for the agent (optional)" style={{ flex: 1 }} />
             <button name="decision" value="proceed">Proceed</button>

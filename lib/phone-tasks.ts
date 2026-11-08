@@ -75,19 +75,23 @@ export function wechatReadTask(maxChats = 8) {
   };
 }
 
+const ALIBABA_SYSTEM =
+  "You are a careful human buyer using Alibaba.com on an Android phone. Use the Alibaba.com app if it is installed; otherwise use Chrome with the mobile website (we are already logged in). " +
+  "Dismiss promotional popups, app-install banners and cookie prompts. Never place orders, never fill RFQ forms unless told, only chat.";
+
 export function alibabaSendTask(target: { supplierName: string; url?: string | null }, text: string) {
   const open = target.url
-    ? `Open this link: ${target.url} (if the phone asks, open it in the Alibaba.com app; otherwise continue in the browser, where we are logged in).`
-    : `Open the Alibaba.com app, search for "${target.supplierName}", and open the supplier's store or product page.`;
+    ? `Open Chrome and go to this link: ${target.url} (if it offers to open in the Alibaba.com app and the app is installed, that is fine too).`
+    : `Open Chrome, go to https://www.alibaba.com, search for "${target.supplierName}", and open the supplier's store or product page.`;
   return {
     task:
-      `You are operating the Alibaba.com buyer app on Android (already logged in). Send one inquiry to supplier "${target.supplierName}".\n` +
-      `Steps: 1) ${open} 2) Tap "Contact Supplier" or "Chat now" to open the chat with the supplier. ` +
-      `3) Tap the message input. The message is on the clipboard: long-press and Paste. If Paste is not offered, type it exactly: "${text}". 4) Tap Send. ` +
-      `5) Confirm the newest outgoing bubble equals the message and return it as last_bubble. ${COMMON_RULES}`,
+      `Send one inquiry to the Alibaba.com supplier "${target.supplierName}".\n` +
+      `Steps: 1) ${open} 2) Tap "Contact Supplier" / "Chat now" / "Send inquiry" to open the chat with this supplier. ` +
+      `3) Tap the message input. The message is on the clipboard: long-press the input and Paste. If Paste is not offered, type it exactly: "${text}". 4) Tap Send. ` +
+      `5) Confirm the newest outgoing bubble equals the message and return it as last_bubble. If a login page appears, return error='not_logged_in'. ${COMMON_RULES}`,
     outputSchema: SEND_SCHEMA,
-    systemPrompt: "You are a careful human buyer using the Alibaba.com app. Dismiss promotional popups. Never place orders, never request quotations through forms unless told, only chat.",
-    maxSteps: 45,
+    systemPrompt: ALIBABA_SYSTEM,
+    maxSteps: 50,
     vision: false,
   };
 }
@@ -95,12 +99,13 @@ export function alibabaSendTask(target: { supplierName: string; url?: string | n
 export function alibabaReadTask(maxThreads = 8) {
   return {
     task:
-      `You are operating the Alibaba.com buyer app on Android (already logged in). Collect new supplier replies. ` +
-      `Steps: 1) Open the Messenger / Messages tab. 2) For each conversation with an unread badge (at most ${maxThreads}), open it, read the newest messages (at most 10), then go back. ` +
+      `Collect new supplier replies on Alibaba.com. ` +
+      `Steps: 1) Open the Messenger: in the app it is the "Messenger" tab; on the mobile website open https://message.alibaba.com in Chrome. ` +
+      `2) For each conversation with an unread badge (at most ${maxThreads}), open it, read the newest messages (at most 10), then go back. ` +
       `Supplier messages are from="supplier"; ours are from="us". Use the supplier/company name shown at the top of the chat as "contact". ` +
-      `Also include any quotation cards (price, MOQ) as text. Do not type or send anything. ${COMMON_RULES}`,
+      `Include quotation cards (price, MOQ, lead time) as text. Do not type or send anything. If a login page appears, return no chats and error='not_logged_in'. ${COMMON_RULES}`,
     outputSchema: READ_SCHEMA,
-    systemPrompt: "You are a careful human buyer using the Alibaba.com app. Read only. Dismiss popups.",
+    systemPrompt: ALIBABA_SYSTEM + " Read only.",
     maxSteps: 80,
     vision: false,
   };

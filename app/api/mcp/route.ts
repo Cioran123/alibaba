@@ -160,7 +160,9 @@ const handler = createMcpHandler(
 function guard(req: Request) {
   const secret = process.env.MCP_SHARED_SECRET;
   const auth = req.headers.get("authorization") || "";
-  if (secret && auth !== `Bearer ${secret}`) return new Response("unauthorized", { status: 401 });
+  // Bearer (Naive vault static_bearer) or `?key=` in the declared URL (when the org key lacks the `admin` scope for vaults).
+  const keyParam = new URL(req.url).searchParams.get("key");
+  if (secret && auth !== `Bearer ${secret}` && keyParam !== secret) return new Response("unauthorized", { status: 401 });
   return handler(req);
 }
 
