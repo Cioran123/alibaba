@@ -50,28 +50,28 @@ const COMMON_RULES =
 export function wechatSendTask(contact: string, text: string) {
   return {
     task:
-      `You are operating WeChat (微信) on an iPhone. Send one message to the contact whose name/remark is exactly "${contact}".\n` +
+      `You are operating WeChat (微信) on a phone. Send one message to the contact whose name/remark is exactly "${contact}".\n` +
       `Steps: 1) Go to the Chats (微信) tab. 2) Tap the search icon at the top, type "${contact}", and open the matching contact/chat. ` +
       `3) Tap the text input at the bottom. The message is already on the clipboard: long-press the input and tap Paste (粘贴). If Paste is not offered, type this text exactly: "${text}". ` +
       `4) Tap Send (发送). 5) Confirm the newest green bubble on the right equals the message and return it as last_bubble. ${COMMON_RULES}`,
     outputSchema: SEND_SCHEMA,
-    systemPrompt: "You control a real person's WeChat on a real iPhone. Be precise and conservative. Chinese UI labels may appear; 微信=Chats, 通讯录=Contacts, 发送=Send, 粘贴=Paste.",
+    systemPrompt: "You control a company WeChat account on a phone. Be precise and conservative. Chinese UI labels may appear; 微信=Chats, 通讯录=Contacts, 发送=Send, 粘贴=Paste.",
     maxSteps: 40,
-    vision: true,
+    vision: process.env.WECHAT_VISION === "1",
   };
 }
 
 export function wechatReadTask(maxChats = 8) {
   return {
     task:
-      `You are operating WeChat (微信) on an iPhone. Collect new incoming messages. ` +
+      `You are operating WeChat (微信) on a phone. Collect new incoming messages. ` +
       `Steps: 1) Go to the Chats tab. 2) For each chat that shows an unread red badge (at most ${maxChats}), open it, read the newest messages (at most 10, newest at the bottom), then go back. ` +
       `Incoming bubbles (left, white) are from="supplier"; our bubbles (right, green) are from="us". For voice notes, long-press the bubble and tap 转文字 (Convert to Text) if available, otherwise kind="voice" with text="[voice note]". ` +
       `For images use kind="image" and describe briefly. Return every chat you opened, even if the only new message is an image. Do not type or send anything. ${COMMON_RULES}`,
     outputSchema: READ_SCHEMA,
-    systemPrompt: "You control a real person's WeChat on a real iPhone. Read only. Never send, never delete.",
+    systemPrompt: "You control a company WeChat account on a phone. Read only. Never send, never delete.",
     maxSteps: 80,
-    vision: true,
+    vision: process.env.WECHAT_VISION === "1",
   };
 }
 
