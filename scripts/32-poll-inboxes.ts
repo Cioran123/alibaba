@@ -103,10 +103,13 @@ async function runJob(job: Job) {
   }
 }
 
+process.on("unhandledRejection", (e: any) => console.log("   ⚠️ unhandled rejection:", e?.message ?? e));
+process.on("uncaughtException", (e: any) => console.log("   ⚠️ uncaught exception:", e?.message ?? e));
 const devices = [WECHAT_DEVICE, DEVICES.android].filter(Boolean);
 console.log(`worker: devices=${devices.join(", ") || "(none configured)"} sweep every ${SWEEP_MIN} min`);
 let lastSweep = 0;
 for (;;) {
+  try {
   // Naive sessions (founder-approved policy): auto-grant session trust to our own procops.* tools; mirror founder questions to /ops.
   try { await pollSessions({ sql, agentIds: AGENTS, log: (m) => console.log("   " + m) }); } catch (e: any) { console.log("   pollSessions:", e.message); }
   const now = Date.now();
@@ -128,4 +131,9 @@ for (;;) {
   }
   if (ONCE && !ran) break;
   if (!ran) await sleep(10_000);
+  } catch (e: any) {
+    // Transient network / API failures (Neon, Naive 429/503, Mobilerun timeouts) must never stop the overnight loop.
+    console.log("   ⚠️ loop error:", (e?.message ?? String(e)).slice(0, 160), "— retrying in 20s");
+    await sleep(20_000);
+  }
 }
