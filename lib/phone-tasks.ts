@@ -81,17 +81,22 @@ const ALIBABA_SYSTEM =
 
 export function alibabaSendTask(target: { supplierName: string; url?: string | null }, text: string) {
   const open = target.url
-    ? `Open Chrome and go to this link: ${target.url} (if it offers to open in the Alibaba.com app and the app is installed, that is fine too).`
-    : `Open Chrome, go to https://www.alibaba.com, search for "${target.supplierName}", and open the supplier's store or product page.`;
+    ? `Open Chrome and go to this exact link: ${target.url}`
+    : `Open Chrome, go to https://www.alibaba.com, search for "${target.supplierName}", open the supplier's product page and tap "Contact supplier".`;
   return {
     task:
-      `Send one inquiry to the Alibaba.com supplier "${target.supplierName}".\n` +
-      `Steps: 1) ${open} 2) Tap "Contact Supplier" / "Chat now" / "Send inquiry" to open the chat with this supplier. ` +
-      `3) Tap the message input. The message is on the clipboard: long-press the input and Paste. If Paste is not offered, type it exactly: "${text}". 4) Tap Send. ` +
-      `5) Confirm the newest outgoing bubble equals the message and return it as last_bubble. If a login page appears, return error='not_logged_in'. ${COMMON_RULES}`,
+      `Send one inquiry to the Alibaba.com supplier "${target.supplierName}" using the website in Chrome (we are logged in).\n` +
+      `Steps: 1) ${open} Wait up to 10 seconds for the "Contact supplier" / "Send message" page (it may be in Russian: "Отправить сообщение"). ` +
+      `If the page is blank, pull down to refresh once and wait 10 seconds. If a "Translate page?" bar appears, dismiss it or tap Translate — either is fine. ` +
+      `2) Tap the large message box labelled "Detailed requirements" / "Подробные требования" / "Please type in". ` +
+      `3) The message is already on the clipboard: long-press the box and tap Paste (Вставить). If Paste is not offered, type it exactly: "${text}". ` +
+      `4) Leave the quantity field as it is. Tap the orange button "Send inquiry now" / "Отправить". ` +
+      `5) Success looks like "Your inquiry was sent successfully" / "Ваш запрос успешно отправлен". Return sent=true and last_bubble = the first 60 characters of the message you pasted. ` +
+      `If a login page appears, return error='not_logged_in'. If a captcha/slider appears, return error='captcha'. ` +
+      `NEVER open Chrome's three-dot menu, never toggle "Desktop site", never open new tabs, never use the address bar except to open the link in step 1. ${COMMON_RULES}`,
     outputSchema: SEND_SCHEMA,
     systemPrompt: ALIBABA_SYSTEM,
-    maxSteps: 50,
+    maxSteps: 70,
     vision: false,
   };
 }

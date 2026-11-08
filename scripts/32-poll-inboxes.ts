@@ -8,6 +8,10 @@ import { DEVICES, runTaskAndWait, setClipboard, saveTaskEvidence } from "../lib/
 import { wechatSendTask, wechatReadTask, alibabaSendTask, alibabaReadTask } from "../lib/phone-tasks";
 import { ingestInbound, recordOutbound } from "../lib/channels";
 import { pollSessions } from "../lib/naive";
+import { wechatSend as macWechatSend, wechatReadNew as macWechatReadNew } from "../lib/wechat-mac";
+
+const MAC_WECHAT = process.env.WECHAT_MODE === "mac";
+const WECHAT_DEVICE = MAC_WECHAT ? "mac-wechat" : DEVICES.iphone;
 
 const SWEEP_MIN = Number(process.env.SWEEP_MIN || 20);
 const ONCE = process.argv.includes("--once");
@@ -47,6 +51,26 @@ async function ingestChats(channel: "wechat" | "alibaba", chats: any[]) {
 
 async function runJob(job: Job) {
   const { kind, device_id, payload } = job;
+  if (device_id === "mac-wechat") {
+    // WeChat desktop on this Mac (AppleScript + screenshots + vision)
+    if (kind === "wechat_send") {
+      const r = await macWechatSend(payload.contact, payload.text);
+      if (r.sent) {
+        await recordOutbound({ supplierId: payload.supplier_id, channel: "wechat", externalThreadId: payload.contact, externalId: `wechat_send:${payload.supplier_id}:${r.taskId}`, body: payload.text, sentBy: "agent", bodyEn: payload.text_en ?? null, screenshotUrl: r.evidence });
+        await finish(job, "done", r);
+      } else {
+        await finish(job, "failed", r, r.error ?? "not_sent");
+      }
+    } else if (kind === "wechat_read") {
+      const r = await macWechatReadNew();
+      const n = r.error ? 0 : await ingestChats("wechat", r.chats);
+      await finish(job, r.error ? "failed" : "done", { ...r, newMessages: n }, r.error ?? undefined);
+      console.log(`   wechat_read (mac): ${r.chats.length} chats, ${n} new messages`);
+    } else {
+      await finish(job, "failed", null, `unsupported on mac: ${kind}`);
+    }
+    return;
+  }
   if (kind === "wechat_send" || kind === "alibaba_send") {
     const text: string = payload.text;
     await setClipboard(device_id, text);
@@ -74,7 +98,7 @@ async function runJob(job: Job) {
   }
 }
 
-const devices = [DEVICES.iphone, DEVICES.android].filter(Boolean);
+const devices = [WECHAT_DEVICE, DEVICES.android].filter(Boolean);
 console.log(`worker: devices=${devices.join(", ") || "(none configured)"} sweep every ${SWEEP_MIN} min`);
 let lastSweep = 0;
 for (;;) {
@@ -83,7 +107,7 @@ for (;;) {
   const now = Date.now();
   if (!NO_SWEEP && now - lastSweep > SWEEP_MIN * 60_000) {
     lastSweep = now;
-    if (DEVICES.iphone) await enqueue(DEVICES.iphone, "wechat_read");
+    if (WECHAT_DEVICE) await enqueue(WECHAT_DEVICE, "wechat_read");
     if (DEVICES.android) await enqueue(DEVICES.android, "alibaba_read");
     await audit("sweep.enqueued", { at: new Date().toISOString() });
     console.log(`⏱  ${new Date().toLocaleTimeString()} sweep enqueued`);

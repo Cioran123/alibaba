@@ -110,10 +110,11 @@ const handler = createMcpHandler(
       async ({ supplier_id, text_zh, text_en }) => {
         const [c] = await sql`select handle from supplier_contacts where supplier_id = ${supplier_id} and channel = 'wechat' limit 1`;
         if (!c) return json({ ok: false, error: "no WeChat contact for this supplier yet; ask for their WeChat ID via alibaba_send or email_send" });
-        if (!DEVICES.iphone) return json({ ok: false, error: "WeChat phone not configured" });
+        const wechatDevice = process.env.WECHAT_MODE === "mac" ? "mac-wechat" : DEVICES.iphone;
+        if (!wechatDevice) return json({ ok: false, error: "WeChat device not configured" });
         const [{ n }] = await sql`select count(*)::int as n from device_jobs where kind = 'wechat_send' and created_at > now() - interval '1 day'`;
         if (n >= 30) return json({ ok: false, error: "daily WeChat send cap reached (30)" });
-        const [job] = await sql`insert into device_jobs(device_id, kind, payload) values (${DEVICES.iphone}, 'wechat_send', ${JSON.stringify({ supplier_id, contact: c.handle, text: text_zh, text_en: text_en ?? null })}::jsonb) returning id`;
+        const [job] = await sql`insert into device_jobs(device_id, kind, payload) values (${wechatDevice}, 'wechat_send', ${JSON.stringify({ supplier_id, contact: c.handle, text: text_zh, text_en: text_en ?? null })}::jsonb) returning id`;
         await audit("tool.wechat_send", { supplier_id, job: job.id });
         return json({ ok: true, job_id: job.id, status: "queued", note: "The phone agent sends this within a few minutes. Do not resend." });
       },
