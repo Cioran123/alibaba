@@ -19,11 +19,22 @@ export async function resolveSupplier(channel: Channel, handle: string): Promise
   }
   const r3 = await sql`select supplier_id from conversations where channel = ${channel} and external_thread_id = ${handle} limit 1`;
   if (r3[0]) return r3[0].supplier_id;
-  // Alibaba sweeps return the supplier's display name; match by contact label or supplier name (prefix-insensitive).
-  const r4 = await sql`select supplier_id from supplier_contacts where lower(label) = lower(${handle}) limit 1`;
-  if (r4[0]) return r4[0].supplier_id;
-  const r5 = await sql`select id from suppliers where lower(name) = lower(${handle}) or lower(${handle}) like lower(name) || '%' or lower(name) like lower(${handle}) || '%' order by id limit 1`;
-  return r5[0]?.id ?? null;
+  // Alibaba sweeps return "Rep Name (Company Co., Ltd.)" or just the company; match the company part against supplier names.
+  const candidates = [handle, ...(handle.match(/\(([^)]+)\)/g) ?? []).map((m) => m.slice(1, -1)), handle.replace(/\s*\([^)]*\)\s*/g, "")]
+    .map((c) => c.trim()).filter((c) => c.length >= 4);
+  for (const cand of candidates) {
+    const r4 = await sql`select supplier_id from supplier_contacts where lower(label) = lower(${cand}) limit 1`;
+    if (r4[0]) return r4[0].supplier_id;
+    const r5 = await sql`select id from suppliers where lower(name) = lower(${cand}) or lower(${cand}) like lower(name) || '%' or lower(name) like lower(${cand}) || '%' or lower(name) like '%' || lower(${cand}) || '%' or lower(${cand}) like '%' || lower(name) || '%' order by id limit 1`;
+    if (r5[0]) return r5[0].id;
+    // company-name core: drop legal suffixes and compare the first 3 words
+    const core = cand.toLowerCase().replace(/\b(co\.?|ltd\.?|limited|technology|electronics?|electronic|trading|industrial|inc\.?|corp\.?)\b/g, " ").replace(/[.,]/g, " ").replace(/\s+/g, " ").trim().split(" ").slice(0, 3).join(" ");
+    if (core.length >= 6) {
+      const r6 = await sql`select id from suppliers where lower(name) like '%' || ${core} || '%' order by id limit 1`;
+      if (r6[0]) return r6[0].id;
+    }
+  }
+  return null;
 }
 
 export async function ingestInbound(p: {
