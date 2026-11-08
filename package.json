@@ -1,0 +1,33 @@
+{
+  "name": "procurement-dept",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "script": "tsx --env-file=.env.local"
+  },
+  "dependencies": {
+    "@mobilerun/sdk": "^6.1.0",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "@neondatabase/serverless": "^1.2.0",
+    "@usenaive-sdk/managed-agents": "^0.12.3",
+    "agentmail": "^0.5.53",
+    "apify-client": "^2.25.0",
+    "mcp-handler": "^2.3.1",
+    "next": "16.4.5",
+    "openai": "^7.53.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9"
+  }
+}
