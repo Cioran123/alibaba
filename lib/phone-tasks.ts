@@ -1,6 +1,7 @@
 /**
  * Natural-language task definitions for the Mobilerun phone agent, with strict output schemas.
- * WeChat runs on the tethered iPhone (vision), Alibaba.com app on the cloud Android (accessibility tree).
+ * WeChat runs on a cloud Android (second account), Alibaba.com on another cloud Android: the official app when
+ * ALIBABA_MODE=app (accessibility tree, deterministic Messenger/RFQ), otherwise the mobile website in Chrome.
  */
 
 export const SEND_SCHEMA = {
@@ -78,11 +79,77 @@ export function wechatReadTask(maxChats = 8, allowed: string[] = []) {
   };
 }
 
-const ALIBABA_SYSTEM =
-  "You are a careful human buyer using Alibaba.com on an Android phone. Use the Alibaba.com app if it is installed; otherwise use Chrome with the mobile website (we are already logged in). " +
-  "Dismiss promotional popups, app-install banners and cookie prompts. Never place orders, never fill RFQ forms unless told, only chat.";
+/** ALIBABA_MODE=app → drive the official Alibaba.com buyer app (com.alibaba.intl.android.apps.poseidon); anything else → mobile web in Chrome. */
+export const ALIBABA_APP = process.env.ALIBABA_MODE === "app";
+/** The Alibaba.com app is Flutter: its accessibility tree is mostly empty, so app tasks run with vision on. */
+const APP_VISION = process.env.ALIBABA_VISION !== "0";
 
-export function alibabaSendTask(target: { supplierName: string; url?: string | null }, text: string) {
+const ALIBABA_SYSTEM = ALIBABA_APP
+  ? "You are a careful human buyer using the official Alibaba.com app on an Android phone (already logged in). Stay inside the app; never open Chrome. " +
+    "Dismiss promotional popups, coupon sheets and notification prompts. Never place orders, never pay, never fill RFQ forms unless told, only chat."
+  : "You are a careful human buyer using Alibaba.com on an Android phone. Use the Alibaba.com app if it is installed; otherwise use Chrome with the mobile website (we are already logged in). " +
+    "Dismiss promotional popups, app-install banners and cookie prompts. Never place orders, never fill RFQ forms unless told, only chat.";
+
+const APP_NOT_LOGGED_IN = `If the app shows a sign-in / login screen, return error='not_logged_in'. If a slider captcha or verification appears, return error='captcha'.`;
+
+function alibabaAppSendTask(target: { supplierName: string; product?: string | null }, text: string) {
+  return {
+    task:
+      `Send one inquiry to the Alibaba.com supplier "${target.supplierName}" using the Alibaba.com app.\n` +
+      `Steps: 1) Open the Alibaba.com app (orange icon). ${APP_NOT_LOGGED_IN} ` +
+      `2) Tap the search bar at the top, type "${target.supplierName}" and search. If the results show a "Suppliers" / "Manufacturers" tab at the top, tap it and open the company whose name matches; otherwise open the first product result from that company and tap the company name to reach its store page. ` +
+      `3) Tap the orange "Chat now" / "Contact Supplier" / "Send inquiry" button. If an inquiry FORM opens (product name + quantity + requirements), use it: tap the requirements box; if a CHAT window opens, tap the message input at the bottom. ` +
+      `4) The message is already on the clipboard: long-press the input and tap Paste. If Paste is not offered, type it exactly: "${text}". 5) Tap Send. ` +
+      `6) Success = the message appears as your newest bubble in the chat, or a "sent successfully" confirmation. Return sent=true and last_bubble = the first 60 characters of the message. ` +
+      `If the supplier cannot be found after two searches, return error='not_found'. ${COMMON_RULES}`,
+    outputSchema: SEND_SCHEMA,
+    systemPrompt: ALIBABA_SYSTEM,
+    maxSteps: 60,
+    vision: APP_VISION,
+  };
+}
+
+function alibabaAppReadTask(maxThreads = 8) {
+  return {
+    task:
+      `Collect new supplier replies in the Alibaba.com app. ` +
+      `Steps: 1) Open the Alibaba.com app. ${APP_NOT_LOGGED_IN} 2) Tap the "Messenger" tab in the bottom bar. ` +
+      `3) For each conversation with an unread badge or bold preview (at most ${maxThreads}), open it, read the newest messages (at most 10, newest at the bottom), then go back to the list. ` +
+      `Supplier messages (left) are from="supplier"; ours (right) are from="us". Use the supplier/company name shown at the top of the chat as "contact". ` +
+      `Quotation cards, product cards and price offers must be written out as text (price, MOQ, lead time). Skip "Alibaba.com" system/notification conversations. Do not type or send anything. ${COMMON_RULES}`,
+    outputSchema: READ_SCHEMA,
+    systemPrompt: ALIBABA_SYSTEM + " Read only.",
+    maxSteps: 80,
+    vision: APP_VISION,
+  };
+}
+
+export const RFQ_SCHEMA = {
+  type: "object",
+  properties: { posted: { type: "boolean" }, confirmation: { type: "string" }, error: { type: ["string", "null"] } },
+  required: ["posted", "confirmation", "error"],
+};
+
+/** Post one RFQ in the Alibaba.com app (the mobile-web form never loaded in Chrome). Details text must already be on the clipboard. */
+export function alibabaAppRfqTask(product: string, quantity: number, detailsPreview: string) {
+  return {
+    task:
+      `Post exactly ONE Request for Quotation (RFQ) in the Alibaba.com app.\n` +
+      `1) Open the Alibaba.com app. ${APP_NOT_LOGGED_IN} ` +
+      `2) Find the RFQ entry: look on the Home tab for a tile or link named "Request for Quotation", "RFQ", "Get Quotations" or "Post sourcing request" (often just under the search bar or in the quick links); if not there, tap the "Me" tab → "My RFQ" / "RFQ" → "+ Post RFQ"; if still not found, type "fall detection module" in search and look for "Post a sourcing request" / "Can't find what you need?" at the top or bottom of the results. ` +
+      `3) In the form: Product name = "${product}". Quantity = ${quantity}, unit Pieces. Detailed requirements / description: the text is on the clipboard — long-press the box and Paste (it starts with "${detailsPreview}"); if Paste is not offered, type the text. ` +
+      `If a category is required, pick Sensors / Electronic Components; if a shipping term is asked, pick FOB; leave attachments and optional fields empty. ` +
+      `4) Tick any required agreement and tap the submit button ("Post RFQ" / "Submit" / "Post now"). 5) Confirmation looks like "RFQ submitted" / "posted successfully" / a page showing your new RFQ. Return posted=true and the confirmation text. ` +
+      `Never post more than one RFQ. If the form cannot be found after trying all entry points, return error='form_not_found'. ${COMMON_RULES.replace("Never send anything except the exact message given. ", "")}`,
+    outputSchema: RFQ_SCHEMA,
+    systemPrompt: ALIBABA_SYSTEM.replace("never fill RFQ forms unless told, ", ""),
+    maxSteps: 70,
+    vision: APP_VISION,
+  };
+}
+
+export function alibabaSendTask(target: { supplierName: string; url?: string | null; product?: string | null }, text: string) {
+  if (ALIBABA_APP) return alibabaAppSendTask(target, text);
   const open = target.url
     ? `Open Chrome and go to this exact link: ${target.url}`
     : `Open Chrome, go to https://www.alibaba.com, search for "${target.supplierName}", open the supplier's product page and tap "Contact supplier".`;
@@ -105,6 +172,7 @@ export function alibabaSendTask(target: { supplierName: string; url?: string | n
 }
 
 export function alibabaReadTask(maxThreads = 8) {
+  if (ALIBABA_APP) return alibabaAppReadTask(maxThreads);
   return {
     task:
       `Collect new supplier replies on Alibaba.com. ` +

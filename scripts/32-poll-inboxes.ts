@@ -90,7 +90,8 @@ async function runJob(job: Job) {
       if (out.error === "security_prompt") { console.log("⚠️  security prompt — pausing this device's queue"); await sql`update device_jobs set status='failed', error='paused_after_security_prompt' where device_id=${device_id} and status='queued'`; }
     }
   } else if (kind === "wechat_read" || kind === "alibaba_read") {
-    const t = kind === "wechat_read" ? wechatReadTask() : alibabaReadTask();
+    const allowedWx = kind === "wechat_read" ? (await sql`select handle from supplier_contacts where channel = 'wechat'`).map((x: any) => String(x.handle)) : [];
+    const t = kind === "wechat_read" ? wechatReadTask(8, allowedWx) : alibabaReadTask();
     const r = await runTaskAndWait({ deviceId: device_id, ...t, timeoutSec: 900 }, { onStatus: (s) => console.log(`   [${kind}] ${s}`) });
     const chats = (r.output as any)?.chats ?? [];
     if (r.succeeded && chats.length) await saveTaskEvidence(r.taskId);

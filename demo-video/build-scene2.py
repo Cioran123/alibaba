@@ -82,7 +82,7 @@ function oldT(t){
 }
 // ── camera: full page ↔ phone ──
 const FULL=[1,960,540], ZOOM=[1.85,1415,598];
-const CAM=[[3.8,"in"],[20.1,"out"],[23.2,"in"],[33.2,"out"],[38.8,"in"],[46.8,"out"],[51.2,"in"],[58.8,"out"],[64.4,"in"],[69.8,"out"]];
+const CAM=[];
 function camera(t){
   let s=FULL; let out=FULL;
   for(const [a,dir] of CAM){ const tg=dir==="in"?ZOOM:FULL; if(t<a) break; const kk=p(t,a,a+1.5); out=[0,1,2].map(i=>s[i]+(tg[i]-s[i])*kk); s=kk>=1?tg:out; }
