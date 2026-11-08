@@ -7,9 +7,12 @@ import { sql, audit } from "../lib/db";
 import { DEVICES, runTaskAndWait, setClipboard } from "../lib/mobilerun";
 import { wechatSendTask, wechatReadTask, alibabaSendTask, alibabaReadTask } from "../lib/phone-tasks";
 import { ingestInbound, recordOutbound } from "../lib/channels";
+import { pollSessions } from "../lib/naive";
 
 const SWEEP_MIN = Number(process.env.SWEEP_MIN || 20);
 const ONCE = process.argv.includes("--once");
+const NO_SWEEP = process.argv.includes("--no-sweep");
+const AGENTS = [process.env.NAIVE_ENVOY_AGENT_ID || "", process.env.NAIVE_HEAD_AGENT_ID || ""];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const hash = (s: string) => createHash("sha1").update(s).digest("hex").slice(0, 24);
 
@@ -73,8 +76,10 @@ const devices = [DEVICES.iphone, DEVICES.android].filter(Boolean);
 console.log(`worker: devices=${devices.join(", ") || "(none configured)"} sweep every ${SWEEP_MIN} min`);
 let lastSweep = 0;
 for (;;) {
+  // Naive sessions (founder-approved policy): auto-grant session trust to our own procops.* tools; mirror founder questions to /ops.
+  try { await pollSessions({ sql, agentIds: AGENTS, log: (m) => console.log("   " + m) }); } catch (e: any) { console.log("   pollSessions:", e.message); }
   const now = Date.now();
-  if (now - lastSweep > SWEEP_MIN * 60_000) {
+  if (!NO_SWEEP && now - lastSweep > SWEEP_MIN * 60_000) {
     lastSweep = now;
     if (DEVICES.iphone) await enqueue(DEVICES.iphone, "wechat_read");
     if (DEVICES.android) await enqueue(DEVICES.android, "alibaba_read");
@@ -91,5 +96,5 @@ for (;;) {
     await sleep(job.kind.endsWith("_send") ? 45_000 : 3_000); // pacing between sends
   }
   if (ONCE && !ran) break;
-  if (!ran) await sleep(15_000);
+  if (!ran) await sleep(10_000);
 }
