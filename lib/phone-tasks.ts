@@ -61,11 +61,14 @@ export function wechatSendTask(contact: string, text: string) {
   };
 }
 
-export function wechatReadTask(maxChats = 8) {
+export function wechatReadTask(maxChats = 8, allowed: string[] = []) {
+  const scope = allowed.length
+    ? `Only open chats whose name is one of these supplier contacts (ignore every other chat): ${allowed.map((a) => `"${a}"`).join(", ")}. `
+    : `Only open chats whose name starts with "S0" followed by digits (supplier contacts); ignore every other chat. `;
   return {
     task:
-      `You are operating WeChat (微信) on a phone. Collect new incoming messages. ` +
-      `Steps: 1) Go to the Chats tab. 2) For each chat that shows an unread red badge (at most ${maxChats}), open it, read the newest messages (at most 10, newest at the bottom), then go back. ` +
+      `You are operating WeChat (微信) on a phone. Collect new incoming messages from supplier contacts. ${scope}` +
+      `Steps: 1) Go to the Chats tab. 2) For each allowed chat that shows an unread red badge (at most ${maxChats}), open it, read the newest messages (at most 10, newest at the bottom), then go back. ` +
       `Incoming bubbles (left, white) are from="supplier"; our bubbles (right, green) are from="us". For voice notes, long-press the bubble and tap 转文字 (Convert to Text) if available, otherwise kind="voice" with text="[voice note]". ` +
       `For images use kind="image" and describe briefly. Return every chat you opened, even if the only new message is an image. Do not type or send anything. ${COMMON_RULES}`,
     outputSchema: READ_SCHEMA,
