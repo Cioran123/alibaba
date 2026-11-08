@@ -1,16 +1,34 @@
 import OpenAI from "openai";
 
-// Called directly (not through Naive's proxy, which rejects image inputs and strict JSON).
-// Placeholder keys keep module import (and `next build` page-data collection) from throwing; calls fail loudly instead.
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "missing-OPENAI_API_KEY" });
+/**
+ * LLM calls made directly (not through Naive's proxy, which rejects image inputs and strict JSON).
+ * OpenRouter is the only required key. If OPENAI_API_KEY is set, vision/memo calls go to OpenAI instead.
+ */
 const openrouter = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY || "missing-OPENROUTER_API_KEY",
   baseURL: "https://openrouter.ai/api/v1",
   defaultHeaders: { "HTTP-Referer": process.env.PUBLIC_BASE_URL || "http://localhost", "X-Title": "procurement-dept" },
 });
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-const VISION_MODEL = process.env.OPENAI_VISION_MODEL || "gpt-5.4-mini";
+// Strong model for memo + vision (OpenAI id when the key exists, else an OpenRouter id), cheap Chinese model for drafting/translation.
+const STRONG_CLIENT = openai ?? openrouter;
+const STRONG_MODEL = openai ? (process.env.OPENAI_VISION_MODEL || "gpt-5.4-mini") : (process.env.OPENROUTER_STRONG_MODEL || "openai/gpt-5.4-mini");
 const ZH_MODEL = process.env.OPENROUTER_ZH_MODEL || "qwen/qwen3.5-plus";
+
+type Part = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail?: "high" | "low" | "auto" } };
+
+/** Chat completion with a strict JSON schema response; works on OpenAI and OpenRouter (json_schema-capable models). */
+async function jsonCall<T>(client: OpenAI, model: string, name: string, schema: Record<string, unknown>, system: string, content: string | Part[]): Promise<T> {
+  const r = await client.chat.completions.create({
+    model,
+    messages: [{ role: "system", content: system }, { role: "user", content: content as any }],
+    response_format: { type: "json_schema", json_schema: { name, schema, strict: true } } as any,
+    temperature: 0,
+  });
+  const raw = r.choices[0]?.message?.content ?? "{}";
+  return JSON.parse(raw.replace(/^```json\s*|```$/g, "")) as T;
+}
 
 export type QuoteFields = {
   unit_price: number | null; currency: string | null; moq: number | null; lead_time_days: number | null;
@@ -23,7 +41,7 @@ const QUOTE_SCHEMA = {
   additionalProperties: false,
   properties: {
     unit_price: { type: ["number", "null"] },
-    currency: { type: ["string", "null"], description: "USD or CNY/RMB" },
+    currency: { type: ["string", "null"], description: "USD or CNY" },
     moq: { type: ["integer", "null"] },
     lead_time_days: { type: ["integer", "null"] },
     certs: { type: "array", items: { type: "string" } },
@@ -35,64 +53,39 @@ const QUOTE_SCHEMA = {
     notes: { type: "string" },
   },
   required: ["unit_price", "currency", "moq", "lead_time_days", "certs", "sample_cost", "sample_lead_days", "payment_terms", "incoterm", "confidence", "notes"],
-} as const;
+};
 
-const EXTRACT_PROMPT =
+const EXTRACT_SYSTEM =
   "You read supplier messages (Chinese or English) for a buyer of fall-detection sensor modules. Extract commercial terms exactly as stated. " +
-  "Use null when not stated. Prices like ¥/RMB/元 are CNY; $/USD are USD. MOQ = 起订量, lead time = 交期/交货期, sample = 样品/打样. " +
+  "Use null when not stated. Prices with ¥/RMB/元 are CNY; $/USD are USD. MOQ = 起订量, lead time = 交期/交货期, sample = 样品/打样. " +
   "confidence=low if numbers are ambiguous or partially visible.";
 
 /** Extract quote fields from text (email body, chat transcript). */
 export async function extractQuoteFromText(text: string): Promise<QuoteFields> {
-  const r = await openai.responses.create({
-    model: VISION_MODEL,
-    input: [{ role: "user", content: [{ type: "input_text", text: `${EXTRACT_PROMPT}\n\nMESSAGE:\n${text}` }] }],
-    text: { format: { type: "json_schema", name: "quote", schema: QUOTE_SCHEMA as any, strict: true } },
-  });
-  return JSON.parse(r.output_text) as QuoteFields;
+  return jsonCall<QuoteFields>(STRONG_CLIENT, STRONG_MODEL, "quote", QUOTE_SCHEMA, EXTRACT_SYSTEM, `MESSAGE:\n${text}`);
 }
 
 /** Extract quote fields from a chat screenshot (WeChat / Alibaba app). `image` = data URL or https URL. */
 export async function extractQuoteFromImage(image: string, hint = ""): Promise<QuoteFields> {
-  const r = await openai.responses.create({
-    model: VISION_MODEL,
-    input: [{
-      role: "user",
-      content: [
-        { type: "input_text", text: `${EXTRACT_PROMPT}\nOnly read the supplier's (left-side / incoming) bubbles. ${hint}` },
-        { type: "input_image", image_url: image, detail: "high" } as any,
-      ],
-    }],
-    text: { format: { type: "json_schema", name: "quote", schema: QUOTE_SCHEMA as any, strict: true } },
-  });
-  return JSON.parse(r.output_text) as QuoteFields;
+  return jsonCall<QuoteFields>(STRONG_CLIENT, STRONG_MODEL, "quote", QUOTE_SCHEMA, EXTRACT_SYSTEM, [
+    { type: "text", text: `Only read the supplier's (left-side / incoming) bubbles. ${hint}` },
+    { type: "image_url", image_url: { url: image, detail: "high" } },
+  ]);
 }
 
-/** Transcribe/translate a chat screenshot into plain text lines (for the thread view). */
-export async function readChatScreenshot(image: string): Promise<{ lines: { from: "supplier" | "us"; text: string; time?: string }[] }> {
-  const r = await openai.responses.create({
-    model: VISION_MODEL,
-    input: [{
-      role: "user",
-      content: [
-        { type: "input_text", text: "Transcribe this chat screenshot. Return each bubble in order. 'supplier' = incoming (left), 'us' = outgoing (right). Keep original language." },
-        { type: "input_image", image_url: image, detail: "high" } as any,
-      ],
-    }],
-    text: {
-      format: {
-        type: "json_schema", name: "chat", strict: true,
-        schema: {
-          type: "object", additionalProperties: false,
-          properties: { lines: { type: "array", items: { type: "object", additionalProperties: false,
-            properties: { from: { type: "string", enum: ["supplier", "us"] }, text: { type: "string" }, time: { type: ["string", "null"] } },
-            required: ["from", "text", "time"] } } },
-          required: ["lines"],
-        },
-      },
-    },
-  });
-  return JSON.parse(r.output_text);
+/** Transcribe a chat screenshot into ordered bubbles (for the thread view). */
+export async function readChatScreenshot(image: string): Promise<{ lines: { from: "supplier" | "us"; text: string; time: string | null }[] }> {
+  const schema = {
+    type: "object", additionalProperties: false,
+    properties: { lines: { type: "array", items: { type: "object", additionalProperties: false,
+      properties: { from: { type: "string", enum: ["supplier", "us"] }, text: { type: "string" }, time: { type: ["string", "null"] } },
+      required: ["from", "text", "time"] } } },
+    required: ["lines"],
+  };
+  return jsonCall(STRONG_CLIENT, STRONG_MODEL, "chat", schema, "Transcribe chat screenshots. 'supplier' = incoming (left), 'us' = outgoing (right). Keep the original language.", [
+    { type: "text", text: "Return each bubble in order." },
+    { type: "image_url", image_url: { url: image, detail: "high" } },
+  ]);
 }
 
 /** Idiomatic B2B Mandarin drafting via a Chinese model on OpenRouter. */
@@ -139,13 +132,11 @@ export async function memoCompose(input: { company: string; target_qty: number; 
     },
     required: ["markdown", "recommended_supplier_id", "ranked", "proposed_next_step"],
   };
-  const r = await openai.responses.create({
-    model: process.env.OPENAI_MEMO_MODEL || VISION_MODEL,
-    input: [{ role: "user", content: [{ type: "input_text", text:
-      `You are the Head of Procurement at ${input.company}. Write a founder decision memo (markdown, ≤350 words) comparing suppliers for ${input.target_qty} fall-detection sensor modules. ` +
-      `Rank by landed cost, lead time, certifications (CE/FCC), supplier credibility, and risk. Authority limits: ${JSON.stringify(input.limits)}. ` +
-      `State clearly what you recommend and what you need the founder to decide (proceed / counter / reject). Never commit money.\n\nDATA:\n${JSON.stringify(input.suppliers, null, 1)}` }] }],
-    text: { format: { type: "json_schema", name: "memo", schema: schema as any, strict: true } },
-  });
-  return JSON.parse(r.output_text) as { markdown: string; recommended_supplier_id: number | null; ranked: any[]; proposed_next_step: string };
+  const system =
+    `You are the Head of Procurement at ${input.company}. Write a founder decision memo (markdown, ≤350 words) comparing suppliers for ${input.target_qty} fall-detection sensor modules. ` +
+    `Rank by landed cost, lead time, certifications (CE/FCC), supplier credibility and risk. Authority limits: ${JSON.stringify(input.limits)}. ` +
+    `State clearly what you recommend and what the founder must decide (proceed / counter / reject). Never commit money. If no supplier has a usable quote yet, say so and recommend the best follow-up.`;
+  return jsonCall<{ markdown: string; recommended_supplier_id: number | null; ranked: any[]; proposed_next_step: string }>(
+    STRONG_CLIENT, process.env.OPENAI_MEMO_MODEL || STRONG_MODEL, "memo", schema, system, `DATA:\n${JSON.stringify(input.suppliers, null, 1)}`,
+  );
 }
