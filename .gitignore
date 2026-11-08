@@ -8,3 +8,4 @@ node_modules
 .mcp.json
 .playwright-mcp/
 tsconfig.tsbuildinfo
+public/evidence/mac-*
