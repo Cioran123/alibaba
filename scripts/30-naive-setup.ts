@@ -18,7 +18,7 @@ const fill = (f: string) =>
     .replaceAll("{{COMPANY}}", process.env.COMPANY_NAME || "Sentinel Care")
     .replaceAll("{{FOUNDER_NAME}}", process.env.FOUNDER_NAME || "the founder");
 
-const ENVOY_TOOLS = ["ledger_read", "draft_zh", "email_send", "alibaba_send", "wechat_send", "record_quote", "propose_offer"];
+const ENVOY_TOOLS = ["draft_zh", "email_send", "alibaba_send", "wechat_send", "record_quote", "propose_offer"];
 const HEAD_TOOLS = [...ENVOY_TOOLS, "memo_compose"];
 
 const tools = (allowed: string[], extra: Record<string, any>) => ({

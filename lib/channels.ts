@@ -2,7 +2,7 @@
  * Inbound ingestion shared by every channel (AgentMail webhook, WeChat/Alibaba phone sweeps):
  * normalize → Neon (idempotent) → wake the supplier's Envoy session (or create one).
  */
-import { sql, audit, advanceStage, getConversation, insertMessage } from "./db";
+import { sql, audit, advanceStage, getConversation, insertMessage, limits } from "./db";
 import { fenceSupplierText, sendToSession, startSession } from "./naive";
 import { translateToEn } from "./llm";
 
@@ -56,14 +56,53 @@ export async function ingestInbound(p: {
   await sql`update conversations set state = 'open' where id = ${conv.id}`;
   await audit("inbound", { channel: p.channel, from: p.from, supplierId, messageId: msg.id });
 
-  const text = fenceSupplierText(p.channel, p.from, p.body + (bodyEn && bodyEn !== p.body ? `\n\n[EN] ${bodyEn}` : ""), p.attachmentsText ? `Attachment text:\n${p.attachmentsText.slice(0, 4000)}` : undefined);
+  const text = fenceSupplierText(p.channel, p.from, redact(p.body) + (bodyEn && bodyEn !== p.body ? `\n\n[EN] ${redact(bodyEn)}` : ""), p.attachmentsText ? `Attachment text:\n${redact(p.attachmentsText).slice(0, 4000)}` : undefined);
   let sessionId: string | null = conv.naive_session_id;
   if (sessionId) {
-    await sendToSession(sessionId, text);
+    await sendToSession(sessionId, `${await ledgerSnapshot(supplierId!)}\n\n${text}`);
   } else {
     sessionId = await ensureEnvoySession(conv.id, text);
   }
   return { duplicate: false as const, conversationId: conv.id, supplierId, messageId: msg.id, sessionId };
+}
+
+/** Strip contact-like data (emails, phones, WeChat ids) so agent-facing text never looks like "people's data". */
+export function redact(text: string): string {
+  return text
+    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[email]")
+    .replace(/(\+?\d[\d\s-]{8,}\d)/g, "[phone]")
+    .replace(/(微信|wechat|wx)\s*(id|号)?\s*[:：]?\s*[A-Za-z][\w-]{4,}/gi, "$1: [wechat-id]");
+}
+
+/**
+ * Compact ledger snapshot delivered INSIDE the session message, so the agent never needs a read tool
+ * (Naive flags chats that read contacts/messages through tools and then asks on every later tool call).
+ */
+export async function ledgerSnapshot(supplierId: number): Promise<string> {
+  const [s] = await sql`select id, name, source, country, years, verified, trade_assurance, stage from suppliers where id = ${supplierId}`;
+  if (!s) return `supplier ${supplierId}: not found`;
+  const chans = await sql`select distinct channel from supplier_contacts where supplier_id = ${supplierId}`;
+  const quotes = await sql`select unit_price, currency, moq, lead_time_days, certs, sample_cost, payment_terms, incoterm, created_at from quotes where supplier_id = ${supplierId} order by id`;
+  const log = await sql`select cv.channel, m.direction, coalesce(m.body_en, m.body_original) as text, m.ts from messages m join conversations cv on cv.id = m.conversation_id where cv.supplier_id = ${supplierId} order by m.ts desc limit 12`;
+  const jobs = await sql`select kind, status from device_jobs where (payload->>'supplier_id')::int = ${supplierId} and status in ('queued','running')`;
+  const L = await limits();
+  const lines = [
+    `LEDGER SNAPSHOT — supplier #${s.id} ${s.name} (${s.source}, ${s.country ?? "?"}, ${s.years ?? "?"} yrs, verified=${s.verified}, trade_assurance=${s.trade_assurance}) stage=${s.stage}`,
+    `channels available: ${chans.map((c: any) => c.channel).join(", ") || "none"}${jobs.length ? ` | queued phone jobs: ${jobs.map((j: any) => j.kind).join(", ")} (do not resend)` : ""}`,
+    `authority limits: max unit price $${L.max_unit_price_usd}, max MOQ ${L.max_moq}, max sample spend $${L.max_sample_spend_usd}, incoterms ${(L.allowed_incoterms || []).join("/")}, payment ${(L.allowed_payment_terms || []).join(" | ")}, target qty ${L.target_qty}`,
+    quotes.length ? `recorded quotes: ${quotes.map((q: any) => `${q.unit_price ?? "?"} ${q.currency ?? ""} @MOQ ${q.moq ?? "?"} lead ${q.lead_time_days ?? "?"}d sample ${q.sample_cost ?? "?"} certs ${(q.certs || []).join("/")} terms ${q.payment_terms ?? "?"}`).join("; ")}` : "recorded quotes: none yet",
+    log.length ? `recent negotiation log (newest first):\n${log.map((m: any) => `  ${m.direction === "in" ? "SUPPLIER" : "US"} [${m.channel}, ${new Date(m.ts).toISOString().slice(0, 16)}]: ${redact(String(m.text)).slice(0, 400)}`).join("\n")}` : "negotiation log: no messages yet",
+  ];
+  return lines.join("\n");
+}
+
+/** Overview snapshot for the Head agent: every contacted supplier with quotes, in one message. */
+export async function overviewSnapshot(): Promise<string> {
+  const rows = await sql`select id from suppliers where stage <> 'found' order by id`;
+  if (!rows.length) return "OVERVIEW: no supplier has been contacted yet.";
+  const parts = [];
+  for (const r of rows) parts.push(await ledgerSnapshot(r.id));
+  return `OVERVIEW of ${rows.length} contacted suppliers:\n\n${parts.join("\n\n")}`;
 }
 
 /** Create the Envoy session for a conversation if NAIVE_ENVOY_AGENT_ID is set; stores naive_session_id. */
@@ -74,8 +113,8 @@ export async function ensureEnvoySession(conversationId: number, firstMessage?: 
   if (conv.naive_session_id) return conv.naive_session_id;
   if (!agentId) return null;
   const intro =
-    `You are now handling supplier #${conv.supplier_id} "${conv.supplier_name}" on channel ${conv.channel} (conversation ${conversationId}). ` +
-    `Start by calling ledger_read(supplier_id=${conv.supplier_id}).` + (firstMessage ? `\n\n${firstMessage}` : "");
+    `You are now handling supplier #${conv.supplier_id} "${conv.supplier_name}" on channel ${conv.channel} (conversation ${conversationId}).\n\n` +
+    (await ledgerSnapshot(conv.supplier_id)) + (firstMessage ? `\n\n${firstMessage}` : "");
   const s = await startSession(agentId, intro, { supplier_id: conv.supplier_id, conversation_id: conversationId, channel: conv.channel });
   await sql`update conversations set naive_session_id = ${s.id} where id = ${conversationId}`;
   await audit("session.created", { conversationId, sessionId: s.id });

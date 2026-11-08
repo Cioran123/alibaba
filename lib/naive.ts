@@ -41,7 +41,7 @@ export function fenceSupplierText(channel: string, from: string, body: string, e
     body.trim(),
     "```",
     extra ? extra : "",
-    "Decide the next step. Use ledger_read first if you need the full thread.",
+    "Decide the next step using the ledger snapshot above.",
   ].filter(Boolean).join("\n");
 }
 

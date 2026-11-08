@@ -95,7 +95,7 @@ export async function draftZh(intent: string, context: string): Promise<{ text_z
   const r = await openrouter.chat.completions.create({
     model: ZH_MODEL,
     messages: [
-      { role: "system", content: "你是一家美国硬件初创公司的采购专员。用自然、礼貌、简洁的中文商务口吻写微信/阿里旺旺消息（不要太正式，像真人采购）。不要承诺付款或下单；涉及付款一律说需要创始人确认并走阿里巴巴信保。只输出JSON: {\"text_zh\": string, \"text_en\": string}（text_en 是中文的忠实英译）。" },
+      { role: "system", content: "你是一家美国硬件初创公司的采购专员。用自然、礼貌、简洁的中文商务口吻写微信/阿里旺旺消息（像真人采购，不要太正式也不要太随意）。称呼用“您好”或对方的名字/公司名，不要用“老板”“亲”。只表达给定的意图，不要主动提付款或下单；如果对方问付款，说需要创始人确认并走阿里巴巴信保。不承诺任何数量或价格。只输出JSON: {\"text_zh\": string, \"text_en\": string}（text_en 是中文的忠实英译）。" },
       { role: "user", content: `意图: ${intent}\n\n上下文:\n${context}` },
     ],
     response_format: { type: "json_object" } as any,

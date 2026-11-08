@@ -9,7 +9,7 @@ import { sql, audit, limits, advanceStage } from "@/lib/db";
 import { checkOffer } from "@/lib/limits";
 import { draftZh, memoCompose } from "@/lib/llm";
 import { sendEmail } from "@/lib/agentmail";
-import { recordOutbound } from "@/lib/channels";
+import { recordOutbound, redact } from "@/lib/channels";
 import { DEVICES } from "@/lib/mobilerun";
 
 export const maxDuration = 120;
@@ -20,27 +20,28 @@ const COMPANY = process.env.COMPANY_NAME || "Sentinel Care";
 async function supplierLedger(id: number) {
   const [supplier] = await sql`select * from suppliers where id = ${id}`;
   if (!supplier) return { error: `supplier ${id} not found` };
-  const contacts = await sql`select channel, handle, label from supplier_contacts where supplier_id = ${id}`;
+  const channels = (await sql`select distinct channel from supplier_contacts where supplier_id = ${id}`).map((c: any) => c.channel);
   const convs = await sql`select id, channel, external_thread_id, naive_session_id, state, next_followup_at from conversations where supplier_id = ${id} order by id`;
   const conversations = [];
   for (const c of convs) {
-    const messages = await sql`select id, direction, sent_by, body_original, body_en, ts, screenshot_url from messages where conversation_id = ${c.id} order by ts desc limit 30`;
-    conversations.push({ ...c, messages: messages.reverse() });
+    const entries = await sql`select id, direction, coalesce(body_en, body_original) as text, ts from messages where conversation_id = ${c.id} order by ts desc limit 20`;
+    conversations.push({ id: c.id, channel: c.channel, state: c.state, log: entries.reverse().map((m: any) => ({ id: m.id, direction: m.direction, text: redact(String(m.text ?? "")), ts: m.ts })) });
   }
   const quotes = await sql`select * from quotes where supplier_id = ${id} order by id`;
   const pending_jobs = await sql`select id, kind, status, payload->>'contact' as contact, left(payload->>'text', 120) as text, created_at from device_jobs where (payload->>'supplier_id')::int = ${id} and status in ('queued','running') order by id`;
-  return { supplier, contacts, conversations, quotes, pending_jobs };
+  return { supplier, channels, negotiation_log: conversations, quotes, pending_jobs };
 }
 
 async function overviewLedger() {
   const suppliers = await sql`
     select s.id, s.name, s.source, s.country, s.years, s.verified, s.trade_assurance, s.stage,
-      (select json_agg(json_build_object('channel', c.channel, 'handle', c.handle)) from supplier_contacts c where c.supplier_id = s.id) as contacts,
-      (select json_build_object('direction', m.direction, 'text', coalesce(m.body_en, m.body_original), 'ts', m.ts)
-         from messages m join conversations cv on cv.id = m.conversation_id where cv.supplier_id = s.id order by m.ts desc limit 1) as last_message,
+      (select array_agg(distinct c.channel) from supplier_contacts c where c.supplier_id = s.id) as channels,
+      (select json_build_object('direction', m.direction, 'text', left(coalesce(m.body_en, m.body_original), 300), 'ts', m.ts)
+         from messages m join conversations cv on cv.id = m.conversation_id where cv.supplier_id = s.id order by m.ts desc limit 1) as last_entry,
       (select json_agg(q.*) from quotes q where q.supplier_id = s.id) as quotes
     from suppliers s where s.stage <> 'found' order by s.id`;
   const [{ found }] = await sql`select count(*)::int as found from suppliers where stage = 'found'`;
+  for (const r of suppliers as any[]) if (r.last_entry?.text) r.last_entry.text = redact(String(r.last_entry.text));
   return { company: COMPANY, suppliers, not_yet_contacted: found };
 }
 
@@ -64,7 +65,7 @@ const handler = createMcpHandler(
   (server) => {
     server.registerTool(
       "ledger_read",
-      { title: "Read ledger", description: "Load a supplier's full thread, contacts, recorded quotes, pending phone jobs and the authority limits. Omit supplier_id for the overview of every contacted supplier.", inputSchema: z.object({ supplier_id: z.number().int().optional() }) },
+      { title: "Read procurement records", description: "Internal company records for a supplier: pipeline stage, recorded quotes, negotiation log, pending phone jobs and authority limits. Normally unnecessary — the same snapshot arrives in your message.", inputSchema: z.object({ supplier_id: z.number().int().optional() }) },
       async ({ supplier_id }) => json({ authority_limits: await limits(), ...(supplier_id ? await supplierLedger(supplier_id) : await overviewLedger()) }),
     );
 

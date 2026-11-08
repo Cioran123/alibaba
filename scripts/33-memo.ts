@@ -2,11 +2,12 @@
 // Run: npm run script scripts/33-memo.ts
 import { naive, startSession } from "../lib/naive";
 import { sql } from "../lib/db";
+import { overviewSnapshot } from "../lib/channels";
 
 const HEAD = process.env.NAIVE_HEAD_AGENT_ID;
 if (!HEAD) throw new Error("NAIVE_HEAD_AGENT_ID not set");
 
-const s = await startSession(HEAD, "Quotes have come in from suppliers. Run your workflow now: ledger_read (overview) → memo_compose → ask_operator for the founder's decision. Pass your session id to memo_compose if you know it.", { role: "head" });
+const s = await startSession(HEAD, `Quotes have come in from suppliers. Run your workflow now: memo_compose → ask_operator for the founder's decision.\n\n${await overviewSnapshot()}`, { role: "head" });
 console.log("head session", s.id);
 await sql`insert into audit_events(kind, payload) values ('memo.session', ${JSON.stringify({ session_id: s.id })}::jsonb)`;
 
